@@ -1,0 +1,277 @@
+{
+  "schemaVersion": 1,
+  "coreAbiVersion": 1,
+  "valid": [
+    {
+      "id": "basic",
+      "request": {
+        "values": [
+          1,
+          2,
+          3
+        ],
+        "multiplier": 2,
+        "offset": 1
+      },
+      "expected": {
+        "values": [
+          3,
+          5,
+          7
+        ],
+        "checksum": 15
+      }
+    },
+    {
+      "id": "signed",
+      "request": {
+        "values": [
+          -3,
+          0,
+          7
+        ],
+        "multiplier": -2,
+        "offset": 5
+      },
+      "expected": {
+        "values": [
+          11,
+          5,
+          -9
+        ],
+        "checksum": 7
+      }
+    },
+    {
+      "id": "empty",
+      "request": {
+        "values": [],
+        "multiplier": 1,
+        "offset": 0
+      },
+      "expected": {
+        "values": [],
+        "checksum": 0
+      }
+    },
+    {
+      "id": "identity",
+      "request": {
+        "values": [
+          0,
+          1,
+          -1,
+          2147483647,
+          -2147483648
+        ],
+        "multiplier": 1,
+        "offset": 0
+      },
+      "expected": {
+        "values": [
+          0,
+          1,
+          -1,
+          2147483647,
+          -2147483648
+        ],
+        "checksum": 4294967295
+      }
+    },
+    {
+      "id": "saturate-positive",
+      "request": {
+        "values": [
+          2147483647,
+          1073741824
+        ],
+        "multiplier": 2,
+        "offset": 100
+      },
+      "expected": {
+        "values": [
+          2147483647,
+          2147483647
+        ],
+        "checksum": 4294967294
+      }
+    },
+    {
+      "id": "saturate-negative",
+      "request": {
+        "values": [
+          -2147483648,
+          -1073741824
+        ],
+        "multiplier": 2,
+        "offset": -100
+      },
+      "expected": {
+        "values": [
+          -2147483648,
+          -2147483648
+        ],
+        "checksum": 0
+      }
+    },
+    {
+      "id": "negate-min",
+      "request": {
+        "values": [
+          -2147483648,
+          2147483647
+        ],
+        "multiplier": -1,
+        "offset": 0
+      },
+      "expected": {
+        "values": [
+          2147483647,
+          -2147483647
+        ],
+        "checksum": 0
+      }
+    },
+    {
+      "id": "zero-gain",
+      "request": {
+        "values": [
+          100,
+          -100
+        ],
+        "multiplier": 0,
+        "offset": -1
+      },
+      "expected": {
+        "values": [
+          -1,
+          -1
+        ],
+        "checksum": 4294967294
+      }
+    },
+    {
+      "id": "large-product",
+      "request": {
+        "values": [
+          2147483647,
+          -2147483648
+        ],
+        "multiplier": 2147483647,
+        "offset": -2147483648
+      },
+      "expected": {
+        "values": [
+          2147483647,
+          -2147483648
+        ],
+        "checksum": 4294967295
+      }
+    },
+    {
+      "id": "min-product",
+      "request": {
+        "values": [
+          -2147483648,
+          2147483647
+        ],
+        "multiplier": -2147483648,
+        "offset": 2147483647
+      },
+      "expected": {
+        "values": [
+          2147483647,
+          -2147483648
+        ],
+        "checksum": 4294967295
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "fractional-value",
+      "request": {
+        "values": [
+          1.5
+        ],
+        "multiplier": 1,
+        "offset": 0
+      },
+      "expectedError": "INVALID_ARGUMENT"
+    },
+    {
+      "id": "out-of-range-value",
+      "request": {
+        "values": [
+          2147483648
+        ],
+        "multiplier": 1,
+        "offset": 0
+      },
+      "expectedError": "INVALID_ARGUMENT"
+    },
+    {
+      "id": "fractional-multiplier",
+      "request": {
+        "values": [
+          1
+        ],
+        "multiplier": 0.5,
+        "offset": 0
+      },
+      "expectedError": "INVALID_ARGUMENT"
+    },
+    {
+      "id": "string-value",
+      "request": {
+        "values": [
+          "1"
+        ],
+        "multiplier": 1,
+        "offset": 0
+      },
+      "expectedError": "INVALID_ARGUMENT"
+    },
+    {
+      "id": "missing-offset",
+      "request": {
+        "values": [
+          1
+        ],
+        "multiplier": 1
+      },
+      "expectedError": "INVALID_ARGUMENT"
+    },
+    {
+      "id": "null-request",
+      "request": null,
+      "expectedError": "INVALID_ARGUMENT"
+    }
+  ],
+  "generatedCases": [
+    {
+      "id": "maximum-length",
+      "repeatValue": 1,
+      "count": 4096,
+      "multiplier": 2,
+      "offset": 1,
+      "expectedValue": 3,
+      "expectedChecksum": 12288
+    },
+    {
+      "id": "too-long",
+      "repeatValue": 1,
+      "count": 4097,
+      "multiplier": 1,
+      "offset": 0,
+      "expectedError": "LIMIT_EXCEEDED"
+    }
+  ],
+  "nonJsonCases": [
+    "NaN",
+    "Infinity",
+    "-Infinity",
+    "undefined"
+  ],
+  "notes": "nonJsonCasesはTSで別途生成しIPC前に検証。native/WASMで計算をTSへ再実装してはいけない。テストの期待値に限って独立oracleを使用可。"
+}

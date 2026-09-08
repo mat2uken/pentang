@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "status": "UNRESOLVED_PLAN_TEMPLATE",
+  "planVersion": "1.2",
+  "note": "未解決値はnull。targetごとの開始前に実測固定する。個人path・署名情報を保存しない。この記録だけで版を強制できるわけではなくdoctorで実設定と照合する。",
+  "versions": {
+    "node": null,
+    "npm": null,
+    "vite": null,
+    "typescript": null,
+    "tauriCliNpm": null,
+    "tauriApiNpm": null,
+    "tauriRustCrate": null,
+    "tauriBuildCrate": null,
+    "rust": null,
+    "ccCrate": null,
+    "cmake": null,
+    "testRunner": null,
+    "browserTestRunner": null,
+    "createTauriApp": null
+  },
+  "web": {
+    "status": "UNRESOLVED",
+    "emscripten": null,
+    "wasmTarget": "wasm32",
+    "maximumMemoryBytes": 67108864,
+    "initialMemoryBytes": 16777216
+  },
+  "macos": {
+    "status": "UNRESOLVED",
+    "rustTarget": "aarch64-apple-darwin",
+    "xcode": null,
+    "sdk": null,
+    "deploymentTarget": null
+  },
+  "iosSimulator": {
+    "status": "UNRESOLVED",
+    "rustTarget": "aarch64-apple-ios-sim",
+    "sdk": null,
+    "deploymentTarget": null,
+    "cocoaPods": null,
+    "runtime": null,
+    "deviceModel": null
+  },
+  "androidEmulator": {
+    "status": "UNRESOLVED",
+    "rustTarget": null,
+    "jdk": null,
+    "ndk": null,
+    "gradle": null,
+    "androidGradlePlugin": null,
+    "compileSdk": null,
+    "targetSdk": null,
+    "minSdk": null,
+    "ndkApiLevel": null,
+    "buildTools": null,
+    "emulatorVersion": null,
+    "systemImage": null,
+    "abi": null
+  },
+  "windows": {
+    "status": "UNRESOLVED",
+    "rustTarget": "x86_64-pc-windows-msvc",
+    "msvcToolset": null,
+    "sdk": null
+  },
+  "deferred": [
+    "N-IOS-DEVICE",
+    "N-ANDROID-DEVICE"
+  ],
+  "testFrameworks": {
+    "unit": "vitest",
+    "browser": "@playwright/test"
+  },
+  "rustDefaults": {
+    "edition": "2024",
+    "workspaceResolver": "3"
+  }
+}
