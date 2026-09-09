@@ -3,7 +3,6 @@ import type {
   AppError,
   CoreInfo,
   RuntimeInfo,
-  TransformRequest,
   TransformResult,
 } from "./application-api";
 import { appError } from "./errors";
@@ -96,8 +95,10 @@ export function validateTransformRequest(
   }
   const m = multiplier === 0 ? 0 : (multiplier as number);
   const o = offset === 0 ? 0 : (offset as number);
+  // copiedは要素ごとに新規構築した所有配列のため、そのままfreezeする (再spread不要)。
+  const frozen = Object.freeze(copied) as readonly number[];
   const validated: ValidatedRequest = {
-    values: Object.freeze([...copied]) as readonly number[],
+    values: frozen,
     multiplier: m,
     offset: o,
     snapshot() {
@@ -128,6 +129,7 @@ export function validateTransformResult(
     return { ok: false, error: appError("TRANSPORT_ERROR", "result.checksum must be uint32") };
   }
   // 公開APIの実装でchecksumを再計算しない。配列全体の計算一致はfixture試験が担当。
+  // valsはcaller所有の可能性があるためコピーしてfreezeする (caller配列のfreeze汚染を防ぐ)。
   return {
     ok: true,
     result: {
@@ -203,10 +205,5 @@ export function validateRuntimeInfo(
     execution: execution as RuntimeInfo["execution"],
     core: { abiVersion, version } as CoreInfo,
   };
-  void ((): void => {
-    // 型の完全性のための参照 (未使用警告の抑止ではない)
-    const _t: TransformRequest | null = null;
-    void _t;
-  })();
   return { ok: true, info };
 }

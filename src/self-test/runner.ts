@@ -31,6 +31,24 @@ export interface SelfTestResult {
   readonly failures: string[];
 }
 
+const golden = goldenRaw as unknown as GoldenFile;
+
+// 公開APIで再現できるA-01の一部 (INVALID_ARGUMENT/LIMIT_EXCEEDEDのcode一致のみ)。
+// C++を実行していない拒否は成功計算に含めない。呼び出しごとに不変のため共有する。
+const INVALID_CASES: ReadonlyArray<{ id: string; req: unknown; want: string }> = [
+  { id: "fractional-value", req: { values: [1.5], multiplier: 1, offset: 0 }, want: "INVALID_ARGUMENT" },
+  { id: "out-of-range-value", req: { values: [2147483648], multiplier: 1, offset: 0 }, want: "INVALID_ARGUMENT" },
+  { id: "fractional-multiplier", req: { values: [1], multiplier: 0.5, offset: 0 }, want: "INVALID_ARGUMENT" },
+  { id: "string-value", req: { values: ["1"], multiplier: 1, offset: 0 }, want: "INVALID_ARGUMENT" },
+  { id: "missing-offset", req: { values: [1], multiplier: 1 }, want: "INVALID_ARGUMENT" },
+  { id: "null-request", req: null, want: "INVALID_ARGUMENT" },
+  {
+    id: "too-long",
+    req: { values: new Array(4097).fill(1), multiplier: 1, offset: 0 },
+    want: "LIMIT_EXCEEDED",
+  },
+];
+
 function arraysEqual(a: readonly number[], b: readonly number[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
@@ -42,9 +60,23 @@ function arraysEqual(a: readonly number[], b: readonly number[]): boolean {
 // 入力不正の件数は別表示し、C++を実行していない拒否試験を成功計算件数に含めない。
 export async function runSelfTest(api: ApplicationApi): Promise<SelfTestResult> {
   const failures: string[] = [];
-  const golden = goldenRaw as unknown as GoldenFile;
   let successCount = 0;
-  const successTotal = golden.valid.length + 1; // + maximum-length
+
+  // maximum-length生成ケース。欠落時は件数に含めない (totalの水増しを防ぐ)。
+  const maxCase = golden.generatedCases.find((c) => c.id === "maximum-length");
+  let maxReq: TransformRequest | null = null;
+  let maxWantValue = 0;
+  let maxWantChecksum = 0;
+  if (maxCase?.count != null && maxCase.repeatValue != null) {
+    maxReq = {
+      values: new Array(maxCase.count).fill(maxCase.repeatValue),
+      multiplier: maxCase.multiplier ?? 1,
+      offset: maxCase.offset ?? 0,
+    };
+    maxWantValue = maxCase.expectedValue ?? 0;
+    maxWantChecksum = maxCase.expectedChecksum ?? 0;
+  }
+  const successTotal = golden.valid.length + (maxReq ? 1 : 0);
 
   for (const c of golden.valid) {
     try {
@@ -60,21 +92,13 @@ export async function runSelfTest(api: ApplicationApi): Promise<SelfTestResult> 
   }
 
   // maximum-length生成ケース
-  const max = golden.generatedCases.find((c) => c.id === "maximum-length");
-  if (max?.count != null && max.repeatValue != null) {
-    const req: TransformRequest = {
-      values: new Array(max.count).fill(max.repeatValue),
-      multiplier: max.multiplier ?? 1,
-      offset: max.offset ?? 0,
-    };
+  if (maxReq) {
     try {
-      const r = await api.transform(req);
-      const wantVal = max.expectedValue ?? 0;
-      const wantSum = max.expectedChecksum ?? 0;
+      const r = await api.transform(maxReq);
       if (
-        r.values.length !== max.count ||
-        !r.values.every((v) => v === wantVal) ||
-        r.checksum !== wantSum
+        r.values.length !== maxReq.values.length ||
+        !r.values.every((v) => v === maxWantValue) ||
+        r.checksum !== maxWantChecksum
       ) {
         failures.push("maximum-length");
       } else {
@@ -87,21 +111,8 @@ export async function runSelfTest(api: ApplicationApi): Promise<SelfTestResult> 
 
   // 公開APIで再現できるA-01の一部 (INVALID_ARGUMENT/LIMIT_EXCEEDEDのcode一致のみ)。
   // C++を実行していない拒否は成功計算に含めない。
-  const invalidCases: Array<{ id: string; req: unknown; want: string }> = [
-    { id: "fractional-value", req: { values: [1.5], multiplier: 1, offset: 0 }, want: "INVALID_ARGUMENT" },
-    { id: "out-of-range-value", req: { values: [2147483648], multiplier: 1, offset: 0 }, want: "INVALID_ARGUMENT" },
-    { id: "fractional-multiplier", req: { values: [1], multiplier: 0.5, offset: 0 }, want: "INVALID_ARGUMENT" },
-    { id: "string-value", req: { values: ["1"], multiplier: 1, offset: 0 }, want: "INVALID_ARGUMENT" },
-    { id: "missing-offset", req: { values: [1], multiplier: 1 }, want: "INVALID_ARGUMENT" },
-    { id: "null-request", req: null, want: "INVALID_ARGUMENT" },
-    {
-      id: "too-long",
-      req: { values: new Array(4097).fill(1), multiplier: 1, offset: 0 },
-      want: "LIMIT_EXCEEDED",
-    },
-  ];
   let invalidPassed = 0;
-  for (const c of invalidCases) {
+  for (const c of INVALID_CASES) {
     try {
       await api.transform(c.req as TransformRequest);
       failures.push(`${c.id}:expected-${c.want}-but-success`);
@@ -116,7 +127,7 @@ export async function runSelfTest(api: ApplicationApi): Promise<SelfTestResult> 
     successCount,
     successTotal,
     invalidPassed,
-    invalidTotal: invalidCases.length,
+    invalidTotal: INVALID_CASES.length,
     failures,
   };
 }
