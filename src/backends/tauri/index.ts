@@ -4,14 +4,14 @@ import type {
   TransformRequest,
   TransformResult,
 } from "../../api/application-api";
-import { appError } from "../../api/errors";
-import { normalizeInvokeRejection } from "../../api/errors";
+import { appError, normalizeInvokeRejection } from "../../api/errors";
 import {
   validateRuntimeInfo,
   validateTransformRequest,
   validateTransformResult,
 } from "../../api/validation";
 import { RequestState } from "../request-state";
+import { checkResultLength, isSingleFailure, raceWithGuard } from "../pipeline";
 
 export type InvokeFn = (
   cmd: string,
@@ -30,13 +30,6 @@ export interface TauriBackendDeps {
   readonly initTimeoutMs?: number;
   readonly requestTimeoutMs?: number;
 }
-
-const SINGLE_CODES = new Set([
-  "INVALID_ARGUMENT",
-  "LIMIT_EXCEEDED",
-  "BUSY",
-  "OUT_OF_MEMORY",
-]);
 
 class TauriBackend implements ApplicationApi {
   private readonly invoke: InvokeFn;
@@ -63,9 +56,7 @@ class TauriBackend implements ApplicationApi {
       // unhandled抑止のためcatchを付ける (raceでも処理するが二重安全)
       guard.catch(() => {});
       const invokeP = this.invoke("poc_get_info");
-      const raw = await Promise.race([invokeP, guard.then(() => {
-        throw this.state.getSavedFailure() ?? appError("TIMEOUT", "init timed out");
-      })]);
+      const raw = await raceWithGuard(invokeP, guard, () => this.state.getSavedFailure(), "init timed out");
       const checked = validateRuntimeInfo(raw);
       if (!checked.ok) {
         // 形が正しくABIだけ違う場合はABI_MISMATCHでfailedへ
@@ -104,22 +95,13 @@ class TauriBackend implements ApplicationApi {
   }
 
   async getInfo(): Promise<RuntimeInfo> {
-    try {
-      this.state.throwIfNotReady();
-    } catch (e) {
-      throw e;
-    }
+    this.state.throwIfNotReady();
     const reg = this.state.register("getInfo");
     const guard = reg.promise;
     guard.catch(() => {});
     const invokeP = this.invoke("poc_get_info");
     try {
-      const raw = await Promise.race([
-        invokeP,
-        guard.then(() => {
-          throw this.state.getSavedFailure() ?? appError("TIMEOUT", "timed out");
-        }),
-      ]);
+      const raw = await raceWithGuard(invokeP, guard, () => this.state.getSavedFailure(), "timed out");
       const checked = validateRuntimeInfo(raw);
       if (!checked.ok) {
         this.state.failAll(checked.error);
@@ -136,7 +118,7 @@ class TauriBackend implements ApplicationApi {
         throw saved;
       }
       const normalized = normalizeInvokeRejection(e);
-      if (SINGLE_CODES.has(normalized.code)) {
+      if (isSingleFailure(normalized.code)) {
         // 当該要求だけreject、ready維持 (通常はgetInfoで単発エラーは起きないが規定どおり)
         this.state.rejectOne(reg.id, normalized);
         throw normalized;
@@ -148,32 +130,18 @@ class TauriBackend implements ApplicationApi {
   }
 
   async transform(request: TransformRequest): Promise<TransformResult> {
-    try {
-      this.state.throwIfNotReady();
-    } catch (e) {
-      throw e;
-    }
+    this.state.throwIfNotReady();
     // 入力検証と応答検証は小さな共通関数。検査済み入力を最初のawaitより前にコピーする。
     const v = validateTransformRequest(request as unknown);
     if (!v.ok) throw v.error;
     const snap = v.validated.snapshot();
-    let reg: { id: number; promise: Promise<unknown> };
-    try {
-      reg = this.state.register("transform");
-    } catch (e) {
-      throw e;
-    }
+    const reg = this.state.register("transform");
     const guard = reg.promise;
     guard.catch(() => {});
     // invoke開始前にpending登録済み
     const invokeP = this.invoke("poc_transform", { request: snap });
     try {
-      const raw = await Promise.race([
-        invokeP,
-        guard.then(() => {
-          throw this.state.getSavedFailure() ?? appError("TIMEOUT", "timed out");
-        }),
-      ]);
+      const raw = await raceWithGuard(invokeP, guard, () => this.state.getSavedFailure(), "timed out");
       // 成功値の形を検査する。field欠落・余分・不正型はTRANSPORT_ERROR。
       const checked = validateTransformResult(raw);
       if (!checked.ok) {
@@ -182,18 +150,16 @@ class TauriBackend implements ApplicationApi {
         throw checked.error;
       }
       // 出力長が要求と一致するかも検査する (壊れた応答の拒否)
-      if (checked.result.values.length !== snap.values.length) {
-        const err = appError("TRANSPORT_ERROR", "result length mismatch");
-        this.state.failAll(err);
-        this.state.rejectOne(reg.id, err);
-        throw err;
+      const lengthError = checkResultLength(checked.result.values.length, snap.values.length);
+      if (lengthError) {
+        this.state.failAll(lengthError);
+        this.state.rejectOne(reg.id, lengthError);
+        throw lengthError;
       }
       this.state.resolveOne(reg.id, checked.result);
-      // 返す配列は入力、他要求から独立 (validationでfreeze済みのコピーを返す)
-      return {
-        values: [...checked.result.values],
-        checksum: checked.result.checksum,
-      };
+      // validationでtransportから切り離し済みのfreeze配列をそのまま返す (再コピー不要)。
+      // 入力・他要求から独立し、readonlyのためcallerが壊せない。
+      return checked.result;
     } catch (e) {
       const saved = this.state.getSavedFailure();
       if (saved && this.state.lifecycle === "failed") {
@@ -201,7 +167,7 @@ class TauriBackend implements ApplicationApi {
       }
       const normalized = normalizeInvokeRejection(e);
       // AppErrorのうち単発で済むものは当該要求だけrejectしready維持
-      if (SINGLE_CODES.has(normalized.code)) {
+      if (isSingleFailure(normalized.code)) {
         this.state.rejectOne(reg.id, normalized);
         throw normalized;
       }
