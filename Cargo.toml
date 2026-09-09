@@ -1,0 +1,3 @@
+[workspace]
+members = ["src-tauri", "crates/poc-core-ffi"]
+resolver = "3"

@@ -1,0 +1,33 @@
+# 依存・生成物
+node_modules/
+dist/
+web-public/wasm/
+target/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+build/
+out/
+test-results/
+playwright-report/
+coverage/
+
+# Tauri 生成物 (mobile host の必要ファイルは個別に管理する)
+# src-tauri/gen 全体を一括ignoreしない。ローカル設定のみ除外する。
+src-tauri/gen/android/local.properties
+src-tauri/gen/apple/**/*.xcworkspace/xcuserdata/
+src-tauri/gen/apple/DerivedData/
+*.keystore
+*.jks
+
+# ローカル記録 (個人path/serial/生ログ)
+reports/local/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json

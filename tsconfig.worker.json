@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "WebWorker"],
+    "types": []
+  },
+  "include": ["src/backends/browser/core.worker.ts", "src/backends/browser/worker-protocol.ts", "src/backends/browser/wasm-types.ts", "src/api/*.ts"]
+}

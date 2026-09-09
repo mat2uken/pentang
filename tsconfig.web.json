@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": ["vite/client"],
+    "paths": {
+      "@backend": ["./src/backends/browser/index.ts"]
+    }
+  },
+  "include": ["src/main.ts", "src/ui.ts", "src/api/**/*.ts", "src/backends/browser/**/*.ts", "src/backends/request-state.ts", "src/self-test/**/*.ts", "index.html", "vite.config.ts", "tests/web/harness.ts"]
+}

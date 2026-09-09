@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "status": "M0-05_RESOLVED",
+  "planVersion": "1.2",
+  "note": "M0-05でmobile host生成・Sim/AVD選定まで解決。Windows利用先・Firefox・mobile browser URLは未確認。個人path・署名情報を保存しない。doctorで実設定と照合する。",
+  "versions": {
+    "node": "24.20.0",
+    "npm": "11.19.0",
+    "vite": "8.2.2",
+    "typescript": "6.0.3",
+    "tauriCliNpm": "2.11.4",
+    "tauriApiNpm": "2.11.1",
+    "tauriRustCrate": "2.11.5",
+    "tauriBuildCrate": "2.6.3",
+    "rust": "1.96.1",
+    "ccCrate": "1.4.5",
+    "cmake": "4.3.4",
+    "testRunner": "vitest@5.0.0",
+    "browserTestRunner": "@playwright/test@1.63.0",
+    "createTauriApp": "4.7.4"
+  },
+  "web": {
+    "status": "RESOLVED_M2",
+    "emscripten": "6.0.9",
+    "wasmTarget": "wasm32",
+    "maximumMemoryBytes": 67108864,
+    "initialMemoryBytes": 16777216
+  },
+  "macos": {
+    "status": "RESOLVED_M0",
+    "rustTarget": "aarch64-apple-darwin",
+    "xcode": "26.6",
+    "sdk": "macosx26.5",
+    "deploymentTarget": null
+  },
+  "iosSimulator": {
+    "status": "RESOLVED_M0",
+    "rustTarget": "aarch64-apple-ios-sim",
+    "sdk": "iphonesimulator26.5",
+    "deploymentTarget": "14.0",
+    "cocoaPods": "1.16.2",
+    "runtime": "iOS 18.5 (22F77)",
+    "deviceModel": "iPhone 16 (75B31423-51DF-4BC0-95B5-E12E073A9409)"
+  },
+  "androidEmulator": {
+    "status": "RESOLVED_M0",
+    "rustTarget": "aarch64-linux-android",
+    "jdk": "21.0.11",
+    "ndk": "28.2.13676358",
+    "gradle": "8.14.3",
+    "androidGradlePlugin": "8.11.0",
+    "compileSdk": 36,
+    "targetSdk": 36,
+    "minSdk": 24,
+    "ndkApiLevel": 24,
+    "buildTools": null,
+    "emulatorVersion": "37.0.0",
+    "systemImage": "system-images/android-36/google_apis_playstore/arm64-v8a",
+    "abi": "arm64-v8a",
+    "avdName": "medium_phone"
+  },
+  "windows": {
+    "status": "UNRESOLVED",
+    "rustTarget": "x86_64-pc-windows-msvc",
+    "msvcToolset": null,
+    "sdk": null
+  },
+  "deferred": [
+    "N-IOS-DEVICE",
+    "N-ANDROID-DEVICE"
+  ],
+  "testFrameworks": {
+    "unit": "vitest",
+    "browser": "@playwright/test"
+  },
+  "rustDefaults": {
+    "edition": "2024",
+    "workspaceResolver": "3"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": [],
+    "paths": {
+      "@backend": ["./src/backends/tauri/index.ts"]
+    }
+  },
+  "include": ["src/main.ts", "src/ui.ts", "src/api/**/*.ts", "src/backends/tauri/**/*.ts", "src/backends/request-state.ts", "src/self-test/**/*.ts", "index.html", "vite.config.ts"]
+}
