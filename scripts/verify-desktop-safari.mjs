@@ -26,17 +26,6 @@ function fail(m) {
   process.exit(1);
 }
 
-function jsInSafari(js) {
-  // front documentでJS実行。Safariの「開発」メニューでAppleScriptからのJSを許可必要 (既定で許可されていることが多い)。
-  const esc = js.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const script = `tell application "Safari"\nactivate\nif (count of documents) = 0 then make new document\nset URL of front document to "${url}"\ndelay 1\nrepeat 30 times\ntry\ndo JavaScript "${esc}" in front document\nend try\ndelay 1\nend repeat\nend tell`;
-  // Actually we need single execution, not loop. Use direct do JavaScript and return result.
-  const direct = `tell application "Safari"\nset _u to "${url}"\nif (count of documents) = 0 then make new document\nset URL of front document to _u\ndelay 3\ntry\ndo JavaScript "${esc}" in front document\non error e\nreturn "APPLESCRIPT_ERROR:" & e\nend try\nend tell`;
-  const res = osa(direct);
-  if (res.status !== 0) return { ok: false, out: res.stderr };
-  return { ok: true, out: (res.stdout ?? "").trim() };
-}
-
 function jsOnce(js) {
   const esc = js.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   const script = `tell application "Safari"\ntry\ndo JavaScript "${esc}" in front document\non error e\nreturn "APPLESCRIPT_ERROR:" & e\nend try\nend tell`;

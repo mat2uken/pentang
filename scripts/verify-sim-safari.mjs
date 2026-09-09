@@ -80,14 +80,6 @@ function simWindowFrame() {
   return { x: Number(pm[1]), y: Number(pm[2]), w: Number(sm[1]), h: Number(sm[2]) };
 }
 
-function simScreenSize(pngPath) {
-  const r = run("sips", ["-g", "pixelWidth", "-g", "pixelHeight", pngPath]);
-  const wm = (r.stdout ?? "").match(/pixelWidth:\s*(\d+)/);
-  const hm = (r.stdout ?? "").match(/pixelHeight:\s*(\d+)/);
-  if (!wm || !hm) fail("sips failed");
-  return { w: Number(wm[1]), h: Number(hm[1]) };
-}
-
 function tapSimNormalized(nx, ny) {
   // nx,ny: Vision正規化ではなく、Simスクリーン左上原点の0-1 (x右、y下)
   // Simulator window contentへのマッピング (bezel/title推定 + 過去の+25px補正はcliclick側で吸収されることを期待)
