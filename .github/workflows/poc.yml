@@ -1,0 +1,90 @@
+name: poc
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# M5-02: web / desktop(macOS) / android / ios のjobを分ける。共通の全target install jobを作らない。
+# 同じnpm scriptsと固定版を使い、npm ci / Cargo --lockedを基準にする。
+# GUI/端末の手動runは別記録にする。署名秘密が必要な実機jobは初回対象に加えない。
+
+env:
+  NODE_VERSION: "24.20.0"
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.9
+      - run: npm ci
+      - run: npm run doctor -- --target web --phase build
+      - run: npm run typecheck -- --scope all
+      - run: npm run test:api
+      - run: npm run test:coverage
+      - run: npm run build:web -- --base /
+      - run: npm run preview:web -- --base / --port 4173 &
+      - run: npx playwright install --with-deps chromium firefox
+      - run: PREVIEW_URL=http://127.0.0.1:4173/ npm run test:web -- --project=chromium
+      - run: PREVIEW_URL=http://127.0.0.1:4173/ npm run test:web -- --project=firefox
+
+  desktop-macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: dtolnay/rust-toolchain@1.96.1
+      - run: npm ci
+      - run: npm run doctor -- --target native --phase build
+      - run: npm run test:core
+      - run: cargo test -p poc-core-ffi --locked
+      - run: cargo test -p poc-app --lib --locked
+      - run: npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: dtolnay/rust-toolchain@1.96.1
+        with:
+          targets: aarch64-linux-android
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run doctor -- --target android --phase build --arch arm64
+      - run: npm run tauri -- android build --debug --apk --target aarch64
+      # 実機/EmulatorへのinstallとUI操作は手動runとして別記録 (署名不要のdebug APKまでを自動化)
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: dtolnay/rust-toolchain@1.96.1
+        with:
+          targets: aarch64-apple-ios-sim
+      - run: npm ci
+      - run: npm run doctor -- --target ios --phase build --device-class simulator --arch arm64
+      - run: npm run tauri -- ios build --debug --target aarch64-sim
+      # Simへのinstall/launchとUI操作は手動runとして別記録 (実機署名は対象外)
