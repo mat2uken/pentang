@@ -1,0 +1,13 @@
+[package]
+name = "poc-core-ffi"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+cc = "=1.4.5"
+
+[dependencies]
+
+[dev-dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151" }

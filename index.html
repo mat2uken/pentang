@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Common Core PoC</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Common Core PoC</h1>
+      <p id="status">initializing</p>
+      <p id="backend-info">backend: -</p>
+      <p id="error"></p>
+      <div>
+        <label>values (JSON array) <input id="values" value="[1,2,3]" /></label>
+        <label>multiplier <input id="multiplier" value="2" /></label>
+        <label>offset <input id="offset" value="1" /></label>
+      </div>
+      <div>
+        <button id="run">実行</button>
+        <button id="selftest">self-test</button>
+        <button id="dispose">破棄</button>
+        <button id="reinit">再初期化</button>
+      </div>
+      <p id="result">result: -</p>
+      <p id="roundtrip"></p>
+      <p id="selftest-result"></p>
+    </main>
+  </body>
+</html>

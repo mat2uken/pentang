@@ -1,0 +1,1 @@
+{"main-poc":{"identifier":"main-poc","description":"PoC main window: allow-poc-api only, no remote URLs","local":true,"windows":["main"],"permissions":["core:default","allow-poc-api"]}}
