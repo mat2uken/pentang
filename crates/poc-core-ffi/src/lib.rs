@@ -80,11 +80,13 @@ pub fn get_info() -> Result<CoreInfo, CoreError> {
             "poc_core_version returned null".to_string(),
         ));
     }
-    // SAFETY: NUL終端UTF-8であることがC headerの契約。
+    // SAFETY: NUL終端であることがC headerの契約。UTF-8不正は契約違反として失敗させる。
+    // lossy変換で黙って化けさせるより、CORE_FAILUREで検知できる方を採る。
     let version = unsafe {
         CStr::from_ptr(ptr as *const c_char)
-            .to_string_lossy()
-            .into_owned()
+            .to_str()
+            .map_err(|_| CoreError::CoreFailure("poc_core_version is not valid UTF-8".to_string()))?
+            .to_owned()
     };
     Ok(CoreInfo {
         abi_version: abi,

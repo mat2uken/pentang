@@ -85,13 +85,9 @@ fn as_int32(v: &serde_json::Value) -> Option<i32> {
                     return None;
                 }
             }
-            if let Some(u) = n.as_u64() {
-                if u <= INT32_MAX_I64 as u64 {
-                    return Some(u as i32);
-                } else {
-                    return None;
-                }
-            }
+            // u64分岐は置かない。i64に収まる整数はas_i64で先に受理/拒否が決まり、
+            // as_u64に届くのはi64に収まらない巨大値だけでint32範囲外が確定するため。
+            // (巨大u64はf64経路でも範囲外で拒否される)
             if let Some(f) = n.as_f64() {
                 if !f.is_finite() {
                     return None;
@@ -114,19 +110,17 @@ fn as_int32(v: &serde_json::Value) -> Option<i32> {
     }
 }
 
-fn is_plain_object(v: &serde_json::Value) -> bool {
-    v.is_object()
-}
-
 // request: serde_json::Valueで受けて明示的に検査する。
 // 検査順は docs/04-contracts.md に合わせる:
 // 必須field存在→values配列→長さ→各要素/multiplier/offsetのint32性。
 // 未知fieldはINVALID_ARGUMENT。疎配列はJSON化時点でnull等になるためINVALID。
+// serde_json::Mapは所有fieldのみ持つため、所有検査はcontains_keyで十分。
 pub fn validate_transform_request(
     request: &serde_json::Value,
 ) -> Result<(Vec<i32>, i32, i32), AppErrorDto> {
     // 2. requestはnullでないobjectかつarrayではない。必須fieldを持ち、未知fieldは拒否。
-    if !is_plain_object(request) {
+    // serde_jsonのis_objectはarray・null・数値等をすべて偽にする。
+    if !request.is_object() {
         return Err(AppErrorDto::invalid(
             "request must be a plain object".to_string(),
         ));
@@ -146,15 +140,9 @@ pub fn validate_transform_request(
     // serde_json::Mapは所有fieldのみなので、この時点で満たす)。
 
     // 3. valuesは通常のArray。長さ4096超はLIMIT_EXCEEDED。
-    let values_v = &obj["values"];
-    let arr = match values_v.as_array() {
-        Some(a) => a,
-        None => {
-            return Err(AppErrorDto::invalid(
-                "values must be an array".to_string(),
-            ))
-        }
-    };
+    let arr = obj["values"].as_array().ok_or_else(|| {
+        AppErrorDto::invalid("values must be an array".to_string())
+    })?;
     if arr.len() > MAX_VALUES {
         return Err(AppErrorDto::limit(format!(
             "values length {} exceeds {}",
@@ -195,12 +183,8 @@ pub fn validate_transform_request(
 }
 
 pub fn build_runtime_info() -> Result<RuntimeInfoDto, AppErrorDto> {
-    let info = poc_core_ffi::get_info().map_err(|e| {
-        AppErrorDto::new(
-            "CORE_FAILURE",
-            format!("ffi get_info failed: {}: {}", e.code(), e.message()),
-        )
-    })?;
+    let info = poc_core_ffi::get_info()
+        .map_err(|e| AppErrorDto::new("CORE_FAILURE", format!("ffi get_info failed: {e}")))?;
     Ok(RuntimeInfoDto {
         api_version: APPLICATION_API_VERSION,
         backend: "tauri-native".to_string(),
