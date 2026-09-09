@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
+import { APPLICATION_API_VERSION, CORE_ABI_VERSION, MAX_VALUES } from "../../src/api/application-api";
 import {
   validateRuntimeInfo,
   validateTransformRequest,
   validateTransformResult,
 } from "../../src/api/validation";
+
+describe("contract constants (v1 wire固定)", () => {
+  it("apiVersion=1・abiVersion=1・maxValues=4096 (変更時は全言語・全試験の更新が必要)", () => {
+    expect(APPLICATION_API_VERSION).toBe(1);
+    expect(CORE_ABI_VERSION).toBe(1);
+    expect(MAX_VALUES).toBe(4096);
+  });
+});
 
 describe("validation result/runtime (A-03/C-01)", () => {
   it("validateTransformResult: ok + freeze", () => {

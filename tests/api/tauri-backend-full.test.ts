@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createTauriBackend,
   createTauriBackendForTest,
   createTauriBackendWithDeps,
 } from "../../src/backends/tauri/index";
@@ -50,7 +51,7 @@ describe("tauri-backend full branches", () => {
     }
   });
 
-  it("getInfo: SINGLE_CODES ready维持 (mock INVALID via transform? use getInfo success path + transform SINGLE)", async () => {
+  it("getInfo: SINGLE stays ready (INVALID single failure)", async () => {
     // transform returning INVALID_ARGUMENT from native should be single (ready维持)
     const invoke = vi.fn(async (cmd: string) => {
       if (cmd === "poc_get_info") return okInfo();
@@ -179,5 +180,38 @@ describe("tauri-backend full branches", () => {
     await p;
     expect(b.debugState().pending).toBe(0);
     await b.dispose();
+  });
+
+  it("public factory without deps uses real invoke (fails without Tauri runtime)", async () => {
+    // 実invoke経路 (default引数) の covering。Tauri外ではTRANSPORT/INITIALIZATIONで失敗する。
+    await expect(createTauriBackend()).rejects.toMatchObject({
+      code: expect.stringMatching(/^(TRANSPORT_ERROR|INITIALIZATION_FAILED)$/),
+    });
+  });
+
+  it("init: CORE_FAILURE is preserved (not wrapped)", async () => {
+    const invoke = vi.fn(async () => {
+      throw { code: "CORE_FAILURE", message: "c boom" };
+    });
+    const b = createTauriBackendForTest({ invoke });
+    await expect(b.init()).rejects.toMatchObject({ code: "CORE_FAILURE" });
+    expect(b.debugState().lifecycle).toBe("failed");
+  });
+
+  it("concurrent fatal failures: second catch returns saved failure", async () => {
+    let calls = 0;
+    const invoke = vi.fn(async () => {
+      calls++;
+      if (calls === 1) return okInfo();
+      throw { code: "CORE_FAILURE", message: "c boom" };
+    });
+    const api = await createTauriBackendWithDeps({ invoke });
+    // 2件同時発行。先行のcatchがfailAllし、後続のcatchは保存済み失敗を返す分岐を通る。
+    const p1 = api.getInfo();
+    const p2 = api.getInfo();
+    await expect(p1).rejects.toMatchObject({ code: "CORE_FAILURE" });
+    await expect(p2).rejects.toMatchObject({ code: "CORE_FAILURE" });
+    expect(calls).toBe(3);
+    await api.dispose();
   });
 });

@@ -3,63 +3,9 @@ import { buildUrls, createBrowserBackend, createBrowserBackendForTest } from "..
 import { WORKER_PROTOCOL_VERSION } from "../../src/backends/browser/worker-protocol";
 import { RequestState } from "../../src/backends/request-state";
 import { runSelfTest } from "../../src/self-test/runner";
+import { makeFakeWorker as makeWorker } from "./fake-worker";
 
-function makeWorker(opts: {
-  onPost?: (msg: { id: number; method: string; payload?: unknown }) => unknown;
-} = {}) {
-  const listeners = new Map<string, Set<(ev: { data: unknown }) => void>>();
-  let errFn: (() => void) | null = null;
-  let msgErrFn: (() => void) | null = null;
-  const worker = {
-    postMessage: vi.fn((msg: { id: number; method: string; payload?: unknown }) => {
-      const data = opts.onPost
-        ? opts.onPost(msg)
-        : msg.method === "transform"
-          ? (() => {
-              const p = msg.payload as { values: number[]; multiplier: number; offset: number };
-              const values = p.values.map((v) => Math.max(-2147483648, Math.min(2147483647, v * p.multiplier + p.offset)));
-              let sum = 0;
-              for (const v of values) sum = (sum + (v >>> 0)) >>> 0;
-              return { protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "transform", ok: true, data: { values, checksum: sum } };
-            })()
-          : { protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: true, data: { abiVersion: 1, version: "0.1.0" } };
-      queueMicrotask(() => {
-        for (const fn of listeners.get("message") ?? []) fn({ data });
-      });
-    }),
-    terminate: vi.fn(),
-    set onmessage(fn: ((ev: { data: unknown }) => void) | null) {
-      if (fn) {
-        if (!listeners.has("message")) listeners.set("message", new Set());
-        listeners.get("message")!.clear();
-        listeners.get("message")!.add(fn as (ev: { data: unknown }) => void);
-      } else listeners.get("message")?.clear();
-    },
-    get onmessage() {
-      return null;
-    },
-    set onerror(fn: (() => void) | null) {
-      errFn = fn;
-    },
-    get onerror() {
-      return errFn;
-    },
-    set onmessageerror(fn: (() => void) | null) {
-      msgErrFn = fn;
-    },
-    get onmessageerror() {
-      return msgErrFn;
-    },
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    __emitMessage(data: unknown) {
-      for (const fn of listeners.get("message") ?? []) fn({ data });
-    },
-  };
-  return worker as unknown as Worker & { __emitMessage: (d: unknown) => void };
-}
-
-describe("branch extra: buildUrls/createWithUrls", () => {
+describe("branch extra: buildUrls/factory", () => {
   it("buildUrls uses document.baseURI", async () => {
     const origDoc = (globalThis as unknown as { document?: unknown }).document;
     (globalThis as unknown as { document: unknown }).document = { baseURI: "https://example.test/poc/" };
@@ -73,9 +19,9 @@ describe("branch extra: buildUrls/createWithUrls", () => {
     }
   });
 
-  it("createWithUrls without deps", async () => {
+  it("factory with explicit urls", async () => {
     const worker = makeWorker();
-    // createBrowserBackend with explicit urls covers same path as createWithUrls
+    // 明示URLでの生成経路。 composition rootは本経路を使う。
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
       moduleUrl: "https://example.test/wasm/poc-core.mjs",
@@ -124,16 +70,17 @@ describe("branch extra: buildUrls/createWithUrls", () => {
     expect(b.debugState().lifecycle).toBe("disposed");
   });
 
-  it("stale with resolver present is cleared, pending missing returns", async () => {
+  it("stale reply clears entry, map-missing returns without side effects", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
     await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
-    // start getInfo then manually delete pendingById to simulate missing (classify pending but map missing)
+    // start getInfo then manually delete the unified entry to simulate a
+    // classification/map skew (classify=pending, map missing)
     const p = b.getInfo().catch((e) => e);
     const nextId = (b as unknown as { nextIdForTest: number }).nextIdForTest - 1;
-    const inner = b as unknown as { pendingById: Map<number, unknown>; replyResolvers: Map<number, unknown> };
-    inner.pendingById.delete(nextId);
-    // emit reply for that id: classify says pending (issued, pending in RequestState), but pendingById missing -> early return, promise hangs until timeout? Use short timeout via dispose to clean.
+    const inner = b as unknown as { pending: Map<number, unknown> };
+    inner.pending.delete(nextId);
+    // emit reply for that id: early return, promise hangs until dispose cleans it.
     worker.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: nextId, method: "getInfo", ok: true, data: { abiVersion: 1, version: "0.1.0" } });
     await new Promise((r) => setTimeout(r, 20));
     await b.dispose();
@@ -160,7 +107,7 @@ describe("branch extra: buildUrls/createWithUrls", () => {
     });
     const b = createBrowserBackendForTest(worker as unknown as Worker);
     await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
-    // getInfo returning SINGLE should reject single but stay ready (per code, SINGLE_CODES includes INVALID)
+    // getInfo returning SINGLE should reject single but stay ready (isSingleFailure includes INVALID)
     // Note: getInfo SINGLE path does rejectOne and throws, staying ready.
     await expect(b.getInfo()).rejects.toMatchObject({ code: "INVALID_ARGUMENT" });
     const info = await b.getInfo();
@@ -199,12 +146,13 @@ describe("branch extra: buildUrls/createWithUrls", () => {
     await api.dispose();
   });
 
-  it("dispose with rejecting resolver that throws", async () => {
+  it("dispose with rejecting entry that throws", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
     await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
-    const inner = b as unknown as { replyResolvers: Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }> };
-    inner.replyResolvers.set(999, {
+    const inner = b as unknown as { pending: Map<number, { method: string; resolve: (v: unknown) => void; reject: (e: unknown) => void }> };
+    inner.pending.set(999, {
+      method: "getInfo",
       resolve: () => {},
       reject: () => {
         throw new Error("reject boom");
@@ -214,19 +162,20 @@ describe("branch extra: buildUrls/createWithUrls", () => {
     expect(b.debugState().lifecycle).toBe("disposed");
   });
 
-  it("onmessage with resolver missing returns", async () => {
+  it("unified map invariant: flight entry carries method", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
     await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
-    const p = b.getInfo().catch((e) => e);
+    expect((b as unknown as { pending: Map<number, unknown> }).pending.size).toBe(0);
+    const p = b.getInfo();
+    const inner = b as unknown as { pending: Map<number, { method: string }> };
+    expect(inner.pending.size).toBe(1);
     const nextId = (b as unknown as { nextIdForTest: number }).nextIdForTest - 1;
-    const inner = b as unknown as { replyResolvers: Map<number, unknown> };
-    inner.replyResolvers.delete(nextId);
-    // pending exists, resolver missing -> early return, hangs. Dispose to clean.
-    worker.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: nextId, method: "getInfo", ok: true, data: { abiVersion: 1, version: "0.1.0" } });
-    await new Promise((r) => setTimeout(r, 20));
+    expect(inner.pending.get(nextId)?.method).toBe("getInfo");
+    // let the real reply complete it
+    await expect(p).resolves.toMatchObject({ backend: "wasm-worker" });
+    expect(inner.pending.size).toBe(0);
     await b.dispose();
-    await p;
   });
 });
 

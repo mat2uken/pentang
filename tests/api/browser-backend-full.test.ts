@@ -1,75 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBrowserBackendForTest, createBrowserBackend } from "../../src/backends/browser/index";
 import { WORKER_PROTOCOL_VERSION } from "../../src/backends/browser/worker-protocol";
-
-function makeWorker(opts: {
-  onPost?: (msg: { id: number; method: string; payload?: unknown }) => unknown;
-  hangInit?: boolean;
-  throwOnPost?: boolean;
-} = {}) {
-  const listeners = new Map<string, Set<(ev: { data: unknown }) => void>>();
-  let errorHandler: (() => void) | null = null;
-  let messageErrorHandler: (() => void) | null = null;
-  const worker = {
-    postMessage: vi.fn((msg: { id: number; method: string; payload?: unknown }) => {
-      if (opts.throwOnPost) throw new Error("post fail");
-      if (opts.hangInit && msg.method === "init") return;
-      const data = opts.onPost
-        ? opts.onPost(msg)
-        : msg.method === "transform"
-          ? (() => {
-              const p = msg.payload as { values: number[]; multiplier: number; offset: number };
-              const values = p.values.map((v) => Math.max(-2147483648, Math.min(2147483647, v * p.multiplier + p.offset)));
-              let sum = 0;
-              for (const v of values) sum = (sum + (v >>> 0)) >>> 0;
-              return { protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "transform", ok: true, data: { values, checksum: sum } };
-            })()
-          : { protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: true, data: { abiVersion: 1, version: "0.1.0" } };
-      queueMicrotask(() => {
-        for (const fn of listeners.get("message") ?? []) fn({ data });
-      });
-    }),
-    terminate: vi.fn(),
-    set onmessage(fn: ((ev: { data: unknown }) => void) | null) {
-      if (fn) {
-        if (!listeners.has("message")) listeners.set("message", new Set());
-        listeners.get("message")!.clear();
-        listeners.get("message")!.add(fn as (ev: { data: unknown }) => void);
-      } else listeners.get("message")?.clear();
-    },
-    get onmessage() {
-      return null;
-    },
-    set onerror(fn: (() => void) | null) {
-      errorHandler = fn;
-    },
-    get onerror() {
-      return errorHandler;
-    },
-    set onmessageerror(fn: (() => void) | null) {
-      messageErrorHandler = fn;
-    },
-    get onmessageerror() {
-      return messageErrorHandler;
-    },
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    __emitMessage(data: unknown) {
-      for (const fn of listeners.get("message") ?? []) fn({ data });
-    },
-    __emitError() {
-      errorHandler?.();
-    },
-    __emitMessageError() {
-      messageErrorHandler?.();
-    },
-  };
-  return worker as unknown as Worker & {
-    __emitMessage: (d: unknown) => void;
-    __emitError: () => void;
-    __emitMessageError: () => void;
-  };
-}
+import { makeFakeWorker as makeWorker } from "./fake-worker";
 
 describe("browser-backend full", () => {
   it("init postMessage throws -> TRANSPORT", async () => {
@@ -289,6 +221,137 @@ describe("browser-backend full", () => {
     await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
     expect(typeof b.nextIdForTest).toBe("number");
     expect(b.debugState().lifecycle).toBe("ready");
+    await b.dispose();
+    expect(b.debugState().lifecycle).toBe("disposed");
+  });
+
+  it("factory without urls falls back to buildUrls (throws without document)", async () => {
+    const worker = makeWorker();
+    // node環境にdocumentがないためbuildUrlsが投げる。URL必須の文書化になる。
+    await expect(
+      createBrowserBackend({ workerFactory: () => worker as unknown as Worker }),
+    ).rejects.toThrow();
+  });
+
+  it("init: ok:false variants map codes", async () => {
+    // error fieldなし -> TRANSPORT
+    {
+      const worker = makeWorker({
+        onPost: (msg) => ({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: false }),
+      });
+      (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementation((msg: { id: number; method: string }) => {
+        queueMicrotask(() =>
+          worker.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: false }),
+        );
+      });
+      const b = createBrowserBackendForTest(worker as unknown as Worker);
+      await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+        code: "TRANSPORT_ERROR",
+      });
+    }
+    // ABI_MISMATCH (messageあり/なし)
+    for (const error of [
+      { code: "ABI_MISMATCH", message: "unsupported ABI 2" },
+      { code: "ABI_MISMATCH" },
+    ]) {
+      const worker = makeWorker();
+      (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementation((msg: { id: number; method: string }) => {
+        queueMicrotask(() =>
+          worker.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: false, error }),
+        );
+      });
+      const b = createBrowserBackendForTest(worker as unknown as Worker);
+      await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+        code: "ABI_MISMATCH",
+      });
+    }
+    // ok:trueだがcore型不正 -> TRANSPORT
+    {
+      const worker = makeWorker();
+      (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementation((msg: { id: number; method: string }) => {
+        queueMicrotask(() =>
+          worker.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: true, data: { abiVersion: "1", version: 1 } }),
+        );
+      });
+      const b = createBrowserBackendForTest(worker as unknown as Worker);
+      await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+        code: "TRANSPORT_ERROR",
+      });
+    }
+  });
+
+  it("getInfo/transform: error fieldなしはTRANSPORT、getInfo致命はfailedへ", async () => {
+    const worker = makeWorker();
+    const api = await createBrowserBackend({
+      workerFactory: () => worker as unknown as Worker,
+      moduleUrl: "https://example.test/wasm/poc-core.mjs",
+      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+    });
+    (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
+      queueMicrotask(() =>
+        worker.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "getInfo", ok: false }),
+      );
+    });
+    await expect(api.getInfo()).rejects.toMatchObject({ code: "TRANSPORT_ERROR" });
+    await api.dispose();
+
+    const worker2 = makeWorker();
+    const api2 = await createBrowserBackend({
+      workerFactory: () => worker2 as unknown as Worker,
+      moduleUrl: "https://example.test/wasm/poc-core.mjs",
+      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+    });
+    (worker2.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
+      queueMicrotask(() =>
+        worker2.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "getInfo", ok: false, error: { code: "CORE_FAILURE", message: "c boom" } }),
+      );
+    });
+    await expect(api2.getInfo()).rejects.toMatchObject({ code: "CORE_FAILURE" });
+    await expect(api2.getInfo()).rejects.toMatchObject({ code: "CORE_FAILURE" });
+    await api2.dispose();
+
+    const worker3 = makeWorker();
+    const api3 = await createBrowserBackend({
+      workerFactory: () => worker3 as unknown as Worker,
+      moduleUrl: "https://example.test/wasm/poc-core.mjs",
+      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+    });
+    (worker3.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
+      queueMicrotask(() =>
+        worker3.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "transform", ok: false }),
+      );
+    });
+    await expect(api3.transform({ values: [1], multiplier: 1, offset: 0 })).rejects.toMatchObject({
+      code: "TRANSPORT_ERROR",
+    });
+    await api3.dispose();
+  });
+
+  it("post-dispose messages are ignored (failed/disposed guards)", async () => {
+    const worker = makeWorker();
+    const b = createBrowserBackendForTest(worker as unknown as Worker);
+    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.dispose();
+    // 壊れた返信・未発行id返信はfailed/disposedガードで無視され、例外にならない
+    worker.__emitMessage({ protocolVersion: 999, id: 1, method: "getInfo", ok: true });
+    worker.__emitMessage({ protocolVersion: WORKER_PROTOCOL_VERSION, id: 999999, method: "getInfo", ok: true, data: { abiVersion: 1, version: "0.1.0" } });
+    // 未捕捉error系も終了後は無視される
+    worker.__emitError();
+    worker.__emitMessageError();
+    await expect(b.getInfo()).rejects.toMatchObject({ code: "DISPOSED" });
+  });
+
+  it("init with BUSY state propagates BUSY (backend stays retryable)", async () => {
+    const worker = makeWorker();
+    const b = createBrowserBackendForTest(worker as unknown as Worker);
+    // 内部RequestStateを8件で埋め、initのregisterをBUSYで失敗させる。
+    // initのregisterはtry外のためBUSYがそのまま伝播し、failed化しない (再試行可能)。
+    const st = (b as unknown as { state: { register(m: string): { id: number; promise: Promise<unknown> } } }).state;
+    for (let i = 0; i < 8; i++) st.register("transform").promise.catch(() => {});
+    await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+      code: "BUSY",
+    });
+    expect(b.debugState().lifecycle).toBe("creating");
     await b.dispose();
     expect(b.debugState().lifecycle).toBe("disposed");
   });

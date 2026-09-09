@@ -131,7 +131,17 @@ describe("worker init/getInfo/transform via onmessage", () => {
   it("init success + getInfo + transform basic", async () => {
     const { mod, selfMock } = await loadWorker();
     const mockModule = makeMockModule();
-    mod.__setImporterForTest(async () => ({ default: async () => mockModule }));
+    mod.__setImporterForTest(async () => ({
+      default: async (opts?: unknown) => {
+        // locateFileの両分岐 (wasm解決・素通し) を covering する
+        const locate = (opts as { locateFile?: (p: string) => string }).locateFile;
+        if (locate) {
+          expect(locate("poc-core.wasm")).toBe("https://example.test/wasm/poc-core.wasm");
+          expect(locate("asset.js")).toBe("asset.js");
+        }
+        return mockModule;
+      },
+    }));
     send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
     const replies = await waitForReply(selfMock, 1);
     expect((replies[0] as { ok: boolean }).ok).toBe(true);
@@ -195,11 +205,11 @@ describe("worker init/getInfo/transform via onmessage", () => {
       expect(first.ok).toBe(false);
       expect(first.error?.code).toBe("ABI_MISMATCH");
     }
-    // importer throws
-    {
+    // importer throws (Error/非Error両方)
+    for (const boom of [new Error("import boom"), "import-string-boom"]) {
       const { mod, selfMock } = await loadWorker();
       mod.__setImporterForTest(async () => {
-        throw new Error("import boom");
+        throw boom;
       });
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
       const r = await waitForReply(selfMock, 1);
@@ -235,24 +245,16 @@ describe("worker init/getInfo/transform via onmessage", () => {
       const r = await waitForReply(selfMock, 2);
       expect((r[1] as { ok: boolean }).ok).toBe(false);
     }
-    // getInfo throws
-    {
+    // getInfo throws (Error/非Error両方でCORE_FAILURE整形を通す)
+    for (const boom of [new Error("getInfo boom"), "getInfo-string-boom"]) {
       const { mod, selfMock } = await loadWorker();
-      const m = makeMockModule({
-        _poc_core_abi_version: () => {
-          throw new Error("abi boom");
-        },
-      });
-      mod.__setImporterForTest(async () => ({ default: async () => m }));
-      // init will use abi=throw? init calls abi once, will go to catch -> INITIALIZATION_FAILED. To test getInfo exception, need init success then getInfo throw:
       const good = makeMockModule();
       mod.__setImporterForTest(async () => ({ default: async () => good }));
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
       await waitForReply(selfMock, 1);
-      // corrupt module to throw on next abi call by mutating HEAP? Simplest: replace global mod via re-init? Instead test transform trap path below covers exception.
-      // For getInfo exception, mutate the stored mod object directly:
+      // stored modを壊して次のabi呼び出しで投げさせる
       (good as { _poc_core_abi_version: () => number })._poc_core_abi_version = () => {
-        throw new Error("getInfo boom");
+        throw boom;
       };
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "getInfo" });
       const r = await waitForReply(selfMock, 2);
@@ -340,12 +342,12 @@ describe("worker init/getInfo/transform via onmessage", () => {
   });
 
   it("transform trap + non-zero status + free throws", async () => {
-    // trap
-    {
+    // trap (Error/非Error両方)
+    for (const boom of [new Error("trap boom"), "trap-string-boom"]) {
       const { mod, selfMock } = await loadWorker();
       const m = makeMockModule({
         _poc_transform_i32: () => {
-          throw new Error("trap boom");
+          throw boom;
         },
       });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
@@ -382,6 +384,27 @@ describe("worker init/getInfo/transform via onmessage", () => {
       // reply already sent before free throws, so still ok true, but state becomes failed
       expect((r[1] as { ok: boolean }).ok).toBe(true);
       expect(mod.__getWorkerStateForTest()).toBe("failed");
+    }
+    // output viewの再取得に失敗すると外側catchでCORE_FAILUREになる
+    {
+      const { mod, selfMock } = await loadWorker();
+      const m = makeMockModule();
+      let heapReads = 0;
+      Object.defineProperty(m, "HEAP32", {
+        get() {
+          heapReads++;
+          if (heapReads === 2) throw new Error("view boom");
+          return (makeMockModule() as unknown as { HEAP32: Int32Array }).HEAP32;
+        },
+      });
+      mod.__setImporterForTest(async () => ({ default: async () => m }));
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      await waitForReply(selfMock, 1);
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1], multiplier: 1, offset: 0 } });
+      const r = await waitForReply(selfMock, 2);
+      const second = r[1] as { ok: boolean; error?: { code: string } };
+      expect(second.ok).toBe(false);
+      expect(second.error?.code).toBe("CORE_FAILURE");
     }
   });
 

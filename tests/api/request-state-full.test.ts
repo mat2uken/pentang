@@ -122,12 +122,12 @@ describe("request-state full branches", () => {
     expect(st.classifyReplyId(0)).toBe("invalid");
     expect(st.classifyReplyId(1.5)).toBe("invalid");
     expect(st.classifyReplyId(NaN)).toBe("invalid");
-    // stale via issued set after resolve
+    // 解決後は単調id比較でstaleになる (別集合を持たない)
     st.resolveOne(id, "v");
     expect(st.classifyReplyId(id)).toBe("stale");
-    // id < nextId but never issued -> stale (monotonic)
+    // id < nextIdなら未使用でも発行済み扱いでstaleになる (単調性)
     expect(st.classifyReplyId(1)).toBe("stale");
-    // large unissued -> invalid
+    // 大きな未発行id -> invalid
     expect(st.classifyReplyId(999999)).toBe("invalid");
   });
 
@@ -179,5 +179,56 @@ describe("request-state full branches", () => {
     expect(st.pendingCount).toBe(1);
     st.resolveOne(r1.id, 1);
     expect(st.pendingCount).toBe(0);
+  });
+
+  it("null timer handles: resolve/reject/failAll/dispose skip clearing", async () => {
+    const nullTimer = (() => null) as unknown as typeof setTimeout;
+    const noopClear = (() => {}) as unknown as typeof clearTimeout;
+    const st = new RequestState({ setTimeoutFn: nullTimer, clearTimeoutFn: noopClear });
+    st.markReady();
+    const r1 = st.register("transform");
+    r1.promise.catch(() => {});
+    expect(st.resolveOne(r1.id, 1)).toBe(true);
+    const r2 = st.register("getInfo");
+    r2.promise.catch(() => {});
+    expect(st.rejectOne(r2.id, { code: "TIMEOUT", message: "t" })).toBe(true);
+    const r3 = st.register("transform");
+    r3.promise.catch(() => {});
+    st.failAll({ code: "TIMEOUT", message: "t" });
+    expect(st.lifecycle).toBe("failed");
+    const st2 = new RequestState({ setTimeoutFn: nullTimer, clearTimeoutFn: noopClear });
+    st2.markReady();
+    const r4 = st2.register("transform");
+    r4.promise.catch(() => {});
+    st2.dispose();
+    expect(st2.lifecycle).toBe("disposed");
+    await r4.promise.catch(() => {});
+    // null timerのままmarkInitFailedしても全pendingを拒否できる
+    const st3 = new RequestState({ setTimeoutFn: nullTimer, clearTimeoutFn: noopClear });
+    const r5 = st3.register("transform");
+    const seen: string[] = [];
+    r5.promise.catch((e) => seen.push((e as { code: string }).code));
+    st3.markInitFailed({ code: "INITIALIZATION_FAILED", message: "x" });
+    expect(st3.lifecycle).toBe("failed");
+    await r5.promise.catch(() => {});
+    expect(seen).toEqual(["INITIALIZATION_FAILED"]);
+  });
+
+  it("timeout after dispose is ignored (no failed transition)", () => {
+    vi.useFakeTimers();
+    try {
+      // clearを無効化してtimerを生かしたままdisposeし、期限到達時の早期復帰を covering する
+      const st = new RequestState({ requestTimeoutMs: 100, clearTimeoutFn: (() => {}) as unknown as typeof clearTimeout });
+      st.markReady();
+      const p = st.register("transform").promise;
+      p.catch(() => {});
+      st.dispose();
+      expect(st.lifecycle).toBe("disposed");
+      vi.advanceTimersByTime(1000);
+      expect(st.lifecycle).toBe("disposed");
+      expect(st.getSavedFailure()?.code).toBe("DISPOSED");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

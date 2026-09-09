@@ -127,6 +127,9 @@ describe("ui branches extra", () => {
     await flush(20);
     await bootP.catch(() => {});
     expect(document.getElementById("status")!.textContent).toBe("disposed");
+    // 世代ずれで到着した成功は、作りかけのinstanceを片付けて破棄する (共有変数には触らない)。
+    // dispose操作1回 + 到着時片付け1回で計2回 (修正前は到着時がnull参照で落ちていた)。
+    expect(backend.dispose).toHaveBeenCalledTimes(2);
   });
 
   it("getInfo failure without code + race ignored", async () => {
@@ -345,5 +348,33 @@ describe("ui branches extra", () => {
     click("reinit");
     await flush(30);
     expect(document.getElementById("status")!.textContent).toBe("ready");
+  });
+
+  it("disabled reflects busy: run/self/reinit locked during execution", async () => {
+    let release!: (v: unknown) => void;
+    const gate = new Promise<unknown>((res) => {
+      release = res as (v: unknown) => void;
+    });
+    const backend = okBackend({
+      transform: vi.fn(() => gate as Promise<never>),
+    });
+    mockedCreateBackend.mockResolvedValue(backend as never);
+    await boot();
+    const run = document.getElementById("run") as HTMLButtonElement;
+    const self = document.getElementById("selftest") as HTMLButtonElement;
+    const reinit = document.getElementById("reinit") as HTMLButtonElement;
+    expect(run.disabled).toBe(false);
+    expect(self.disabled).toBe(false);
+    expect(reinit.disabled).toBe(false);
+    click("run");
+    await flush(5);
+    expect(run.disabled).toBe(true);
+    expect(self.disabled).toBe(true);
+    expect(reinit.disabled).toBe(true);
+    release({ values: [3, 5, 7], checksum: 15 });
+    await flush(20);
+    expect(document.getElementById("result")!.textContent).toContain("checksum=15");
+    expect(run.disabled).toBe(false);
+    expect(reinit.disabled).toBe(false);
   });
 });
