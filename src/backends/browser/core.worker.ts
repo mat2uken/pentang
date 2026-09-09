@@ -14,16 +14,6 @@ type WorkerState = "uninitialized" | "initializing" | "ready" | "failed";
 let state: WorkerState = "uninitialized";
 let mod: PocCoreModule | null = null;
 
-function mallocOf(m: PocCoreModule): (size: number) => number {
-  return (size: number) => m._malloc(size);
-}
-
-function freeOf(m: PocCoreModule): (ptr: number) => void {
-  return (ptr: number) => {
-    m._free(ptr);
-  };
-}
-
 function reply(msg: WorkerResponse): void {
   self.postMessage(msg);
 }
@@ -34,6 +24,23 @@ function failReply(
   message: string,
 ): void {
   reply({ ...base, ok: false, error: appError(code, message) });
+}
+
+// 実ABI検査と版文字列取得の共通化 (init/getInfo)。ABI違いはABI_MISMATCH返信。
+// WASM呼び出しの例外はthrowせず上位handlerのcatchへ任せる (codeが変わるため)。
+type CoreRead = { ok: true; version: string } | { ok: false; abi: number };
+function tryReadCoreInfo(m: PocCoreModule): CoreRead {
+  const abi = m._poc_core_abi_version();
+  if (abi !== 1) return { ok: false, abi };
+  return { ok: true, version: m.UTF8ToString(m._poc_core_version()) };
+}
+
+function abiMismatchReply(
+  base: { protocolVersion: typeof WORKER_PROTOCOL_VERSION; id: number; method: WorkerRequest["method"] },
+  abi: number,
+): void {
+  state = "failed";
+  reply({ ...base, ok: false, error: appError("ABI_MISMATCH", `unsupported ABI ${String(abi)}`) });
 }
 
 function isSafePositiveInt(v: unknown): v is number {
@@ -82,9 +89,8 @@ export function checkUrls(moduleUrl: unknown, wasmUrl: unknown): string | null {
 let tail: Promise<void> = Promise.resolve();
 function enqueue(fn: () => Promise<void>): void {
   const run = tail.then(fn, fn);
-  tail = run.catch(() => {});
   // unhandled抑止のためcatch済みのtailを保持する
-  void tail;
+  tail = run.catch(() => {});
 }
 
 // test用のimporter差し替え。製品は既定の動的importを使う。
@@ -137,23 +143,15 @@ async function handleInit(
       failReply(base, "INITIALIZATION_FAILED", "invalid module exports");
       return;
     }
-    // 実ABI検査
-    const abi = instance._poc_core_abi_version();
-    if (abi !== 1) {
-      state = "failed";
-      // 形が正しいCoreInfoのABI違いは上位でABI_MISMATCHへ。ここではinit失敗として返す。
-      reply({
-        ...base,
-        ok: false,
-        error: appError("ABI_MISMATCH", `unsupported ABI ${String(abi)}`),
-      });
+    // 実ABI検査。形が正しいCoreInfoのABI違いは上位でABI_MISMATCHへ扱う。
+    const read = tryReadCoreInfo(instance);
+    if (!read.ok) {
+      abiMismatchReply(base, read.abi);
       return;
     }
     mod = instance;
     state = "ready";
-    const versionPtr = instance._poc_core_version();
-    const version = instance.UTF8ToString(versionPtr);
-    reply({ ...base, ok: true, data: { abiVersion: abi, version } });
+    reply({ ...base, ok: true, data: { abiVersion: 1, version: read.version } });
   } catch (e) {
     state = "failed";
     const msg = e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300);
@@ -172,14 +170,12 @@ async function handleGetInfo(base: {
   }
   try {
     const m = mod;
-    const abi = m._poc_core_abi_version();
-    if (abi !== 1) {
-      state = "failed";
-      reply({ ...base, ok: false, error: appError("ABI_MISMATCH", `unsupported ABI ${String(abi)}`) });
+    const read = tryReadCoreInfo(m);
+    if (!read.ok) {
+      abiMismatchReply(base, read.abi);
       return;
     }
-    const version = m.UTF8ToString(m._poc_core_version());
-    reply({ ...base, ok: true, data: { abiVersion: abi, version } });
+    reply({ ...base, ok: true, data: { abiVersion: 1, version: read.version } });
   } catch (e) {
     state = "failed";
     const msg = e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300);
@@ -205,40 +201,35 @@ async function handleTransform(
   const snap = v.validated.snapshot();
   const count = snap.values.length;
   const m = mod;
-  const doMalloc = mallocOf(m);
-  const doFree = freeOf(m);
   // 04のheap手順:
   // 1. count>0なら入力と出力各count*4 byte、常にchecksum 4 byte。count=0では入出力確保を省く。
   // 2. 各_mallocの0返却を検査し、途中失敗でも確保済みをfinallyで解放する。
   let inPtr = 0;
   let outPtr = 0;
   let sumPtr = 0;
+  // 確保成功した領域の一覧。_mallocは0以外の新規pointerを返す契約のため重複検査はしない。
   const allocated: number[] = [];
-  const trackFree = (ptr: number): void => {
-    // 成功・失敗のいずれも全確保領域を1回ずつ_freeする
-    if (ptr !== 0 && !allocated.includes(ptr)) allocated.push(ptr);
-  };
   try {
     if (count > 0) {
-      inPtr = doMalloc(count * 4);
+      inPtr = m._malloc(count * 4);
       if (inPtr === 0) {
         failReply(base, "OUT_OF_MEMORY", "input alloc failed");
         return;
       }
-      trackFree(inPtr);
-      outPtr = doMalloc(count * 4);
+      allocated.push(inPtr);
+      outPtr = m._malloc(count * 4);
       if (outPtr === 0) {
         failReply(base, "OUT_OF_MEMORY", "output alloc failed");
         return;
       }
-      trackFree(outPtr);
+      allocated.push(outPtr);
     }
-    sumPtr = doMalloc(4);
+    sumPtr = m._malloc(4);
     if (sumPtr === 0) {
       failReply(base, "OUT_OF_MEMORY", "checksum alloc failed");
       return;
     }
-    trackFree(sumPtr);
+    allocated.push(sumPtr);
 
     // 3. 全確保後にHEAPを取得し、入力をコピーして実C関数を呼ぶ。
     // memory growthでviewが更新されるため、確保後に取得する。
@@ -292,7 +283,7 @@ async function handleTransform(
     // runtime自体が壊れて_freeも失敗する場合はCORE_FAILUREを保ってWorkerを終了しmoduleごと回収する。
     try {
       for (const ptr of allocated) {
-        doFree(ptr);
+        m._free(ptr);
       }
     } catch {
       state = "failed";

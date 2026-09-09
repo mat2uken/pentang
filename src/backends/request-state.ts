@@ -7,7 +7,7 @@ export type PendingMethod = "getInfo" | "transform";
 interface PendingEntry {
   readonly id: number;
   readonly method: PendingMethod;
-  readonly resolve: (value: unknown) => void;
+  readonly resolve: (value: unknown | PromiseLike<unknown>) => void;
   readonly reject: (err: AppError) => void;
   timer: ReturnType<typeof setTimeout> | null;
   settled: boolean;
@@ -29,7 +29,6 @@ export class RequestState {
   private savedFailure: AppError | null = null;
   private nextId = 1;
   private readonly pending = new Map<number, PendingEntry>();
-  private readonly issued = new Set<number>();
   private readonly initTimeoutMs: number;
   private readonly requestTimeoutMs: number;
   private readonly setTimeoutFn: typeof setTimeout;
@@ -74,8 +73,18 @@ export class RequestState {
     if (this.state !== "creating") return;
     this.state = "failed";
     this.savedFailure = error;
-    this.clearAllTimers();
+    // 待機中の初期化promiseを残さない。failAllと同様に全pendingを拒否する。
+    const entries = [...this.pending.values()];
     this.pending.clear();
+    for (const e of entries) {
+      e.settled = true;
+      if (e.timer) this.clearTimeoutFn(e.timer);
+      try {
+        e.reject(error);
+      } catch {
+        // ignore
+      }
+    }
     this.onFatal?.();
   }
 
@@ -105,14 +114,13 @@ export class RequestState {
     this.ensureCanSend();
     const id = this.nextId;
     this.nextId += 1;
-    this.issued.add(id);
     const timeoutMs = opts.init ? this.initTimeoutMs : this.requestTimeoutMs;
     let entry!: PendingEntry;
     const promise = new Promise<unknown>((resolve, reject) => {
       entry = {
         id,
         method,
-        resolve: resolve as (value: unknown) => void,
+        resolve,
         reject,
         timer: null,
         settled: false,
@@ -209,12 +217,13 @@ export class RequestState {
   }
 
   // 返信idの分類: pendingにある→処理、発行済みで完了済み→破棄、未発行/不正→TRANSPORT_ERROR。
+  // idは1から単調増加し再利用しないため、発行済み判定は nextId との比較で十分。
+  // 完了済みidを別集合に保持すると長期運用で無制限に増えるため、比較で判定する。
   classifyReplyId(id: unknown): "pending" | "stale" | "invalid" {
     if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0) {
       return "invalid";
     }
     if (this.pending.has(id)) return "pending";
-    if (this.issued.has(id)) return "stale";
     // 単調増加・再利用なしのため、nextId未満は発行済みとみなす
     if (id < this.nextId) return "stale";
     return "invalid";
@@ -229,13 +238,6 @@ export class RequestState {
     }
     if (this.state !== "ready") {
       throw appError("INITIALIZATION_FAILED", "not ready");
-    }
-  }
-
-  private clearAllTimers(): void {
-    for (const e of this.pending.values()) {
-      if (e.timer) this.clearTimeoutFn(e.timer);
-      e.settled = true;
     }
   }
 }

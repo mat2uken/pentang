@@ -18,10 +18,6 @@ export interface PocCoreModule {
   HEAPU32: Uint32Array;
 }
 
-export type PocCoreFactory = (
-  opts?: { locateFile?: (path: string) => string },
-) => Promise<PocCoreModule>;
-
 export function isPocCoreModule(m: unknown): m is PocCoreModule {
   if (typeof m !== "object" || m === null) return false;
   const o = m as Record<string, unknown>;
