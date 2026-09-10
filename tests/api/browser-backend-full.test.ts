@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createBrowserBackendForTest, createBrowserBackend } from "../../src/backends/browser/index";
-import { WORKER_PROTOCOL_VERSION } from "../../src/backends/browser/worker-protocol";
+import { createBrowserBackendForTest, createBrowserBackend } from "../../packages/backends/browser/index";
+import { WORKER_PROTOCOL_VERSION } from "../../packages/backends/browser/worker-protocol";
 import { makeFakeWorker as makeWorker } from "./fake-worker";
 
 describe("browser-backend full", () => {

@@ -4,8 +4,8 @@
     "lib": ["ES2022", "DOM"],
     "types": [],
     "paths": {
-      "@backend": ["./src/backends/tauri/index.ts"]
+      "@backend": ["./packages/backends/tauri/index.ts"]
     }
   },
-  "include": ["src/main.ts", "src/ui.ts", "src/api/**/*.ts", "src/backends/tauri/**/*.ts", "src/backends/request-state.ts", "src/self-test/**/*.ts", "index.html", "vite.config.ts"]
+  "include": ["apps/demo/main.ts", "apps/demo/ui.ts", "apps/demo/self-test/**/*.ts", "packages/api/**/*.ts", "packages/backends/tauri/**/*.ts", "packages/backends/request-state.ts", "packages/backends/pipeline.ts", "index.html", "vite.config.ts"]
 }

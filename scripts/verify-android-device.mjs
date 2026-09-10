@@ -8,7 +8,7 @@ import path from "node:path";
 import { parseKVArgs, ROOT } from "./lib.mjs";
 
 function usage() {
-  return `usage: node scripts/verify-android-device.mjs --serial <adb-serial> --preview-host <host-lan-ip> [--preview-port 4174 --apk <path> --out reports/local/android-device]\n  example: node scripts/verify-android-device.mjs --serial emulator-5554 --preview-host 192.168.99.239 --preview-port 4174`;
+  return `usage: node scripts/verify-android-device.mjs --serial <adb-serial> --preview-host <host-lan-ip> [--preview-port 4174 --apk <path> --out research/reports/local/android-device]\n  example: node scripts/verify-android-device.mjs --serial emulator-5554 --preview-host 192.168.99.239 --preview-port 4174`;
 }
 
 const { kv } = parseKVArgs(process.argv.slice(2));
@@ -30,7 +30,7 @@ if (typeof previewHost !== "string" || previewHost === "") {
 }
 const previewPort = Number(kv["preview-port"] ?? "4174");
 const apkRel = kv["apk"] ?? "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk";
-const outRel = kv["out"] ?? "reports/local/android-device";
+const outRel = kv["out"] ?? "research/reports/local/android-device";
 
 function log(m) {
   console.log(`[verify-android-device] ${m}`);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateTransformRequest } from "../../src/api/validation";
+import { validateTransformRequest } from "../../packages/api/validation";
 
 describe("validation (A-01/input)", () => {
   const base = { values: [1, 2, 3], multiplier: 2, offset: 1 };

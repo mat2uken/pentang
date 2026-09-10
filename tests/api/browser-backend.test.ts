@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createBrowserBackendForTest } from "../../src/backends/browser/index";
-import { WORKER_PROTOCOL_VERSION } from "../../src/backends/browser/worker-protocol";
+import { createBrowserBackendForTest } from "../../packages/backends/browser/index";
+import { WORKER_PROTOCOL_VERSION } from "../../packages/backends/browser/worker-protocol";
 import { makeFakeWorker, type FakeWorkerMessage } from "./fake-worker";
 
 // 既定のecho応答を使う簡易版。特殊応答は各試験でonPostに渡す。
@@ -11,7 +11,7 @@ function makeEchoWorker(opts: { onPost?: (msg: FakeWorkerMessage) => unknown; ha
 describe("browser-backend", () => {
   it("init・基本変換・self-test相当の11件", async () => {
     const worker = makeEchoWorker();
-    const { createBrowserBackend } = await import("../../src/backends/browser/index");
+    const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
       moduleUrl: "https://example.test/wasm/poc-core.mjs",
@@ -31,7 +31,7 @@ describe("browser-backend", () => {
 
   it("不正入力は送信せずINVALID", async () => {
     const worker = makeEchoWorker();
-    const { createBrowserBackend } = await import("../../src/backends/browser/index");
+    const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
       moduleUrl: "https://example.test/wasm/poc-core.mjs",
@@ -47,7 +47,7 @@ describe("browser-backend", () => {
 
   it("壊れた返信はTRANSPORT_ERRORでfailed", async () => {
     const worker = makeEchoWorker();
-    const { createBrowserBackend } = await import("../../src/backends/browser/index");
+    const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
       moduleUrl: "https://example.test/wasm/poc-core.mjs",
@@ -63,7 +63,7 @@ describe("browser-backend", () => {
 
   it("dispose後はDISPOSED、再生成は新インスタンス", async () => {
     const worker = makeEchoWorker();
-    const { createBrowserBackend } = await import("../../src/backends/browser/index");
+    const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
       moduleUrl: "https://example.test/wasm/poc-core.mjs",

@@ -5,7 +5,7 @@ import {
   isAppErrorCode,
   normalizeInvokeRejection,
   transportError,
-} from "../../src/api/errors";
+} from "../../packages/api/errors";
 
 describe("errors", () => {
   it("isAppErrorCode: known/unknown", () => {

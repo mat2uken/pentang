@@ -16,4 +16,4 @@ tauri-build = { version = "=2.6.3", features = [] }
 tauri = { version = "=2.11.5", features = [] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151" }
-poc-core-ffi = { path = "../crates/poc-core-ffi" }
+poc-core-ffi = { path = "../packages/ffi" }

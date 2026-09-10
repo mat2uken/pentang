@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildUrls, createBrowserBackend, createBrowserBackendForTest } from "../../src/backends/browser/index";
-import { WORKER_PROTOCOL_VERSION } from "../../src/backends/browser/worker-protocol";
-import { RequestState } from "../../src/backends/request-state";
-import { runSelfTest } from "../../src/self-test/runner";
+import { buildUrls, createBrowserBackend, createBrowserBackendForTest } from "../../packages/backends/browser/index";
+import { WORKER_PROTOCOL_VERSION } from "../../packages/backends/browser/worker-protocol";
+import { RequestState } from "../../packages/backends/request-state";
+import { runSelfTest } from "../../apps/demo/self-test/runner";
 import { makeFakeWorker as makeWorker } from "./fake-worker";
 
 describe("branch extra: buildUrls/factory", () => {
@@ -258,7 +258,7 @@ describe("branch extra: runner missing max", () => {
     const api = {
       getInfo: async () => ({}),
       transform: async (req: { values: readonly number[]; multiplier: number; offset: number }) => {
-        const { validateTransformRequest } = await import("../../src/api/validation");
+        const { validateTransformRequest } = await import("../../packages/api/validation");
         const v = validateTransformRequest(req as unknown);
         if (!v.ok) throw v.error;
         const s = v.validated.snapshot();

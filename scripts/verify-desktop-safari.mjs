@@ -6,12 +6,12 @@ import path from "node:path";
 import { parseKVArgs, ROOT } from "./lib.mjs";
 
 function usage() {
-  return `usage: node scripts/verify-desktop-safari.mjs [--url http://127.0.0.1:4173/ --out reports/local/wsafari-root]`;
+  return `usage: node scripts/verify-desktop-safari.mjs [--url http://127.0.0.1:4173/ --out research/reports/local/wsafari-root]`;
 }
 
 const { kv } = parseKVArgs(process.argv.slice(2));
 const url = kv["url"] ?? "http://127.0.0.1:4173/";
-const outRel = kv["out"] ?? "reports/local/wsafari-root";
+const outRel = kv["out"] ?? "research/reports/local/wsafari-root";
 
 function osa(script) {
   const res = spawnSync("osascript", ["-e", script], { cwd: ROOT, encoding: "utf-8", timeout: 30000 });

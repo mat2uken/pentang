@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPocCoreModule } from "../../src/backends/browser/wasm-types";
+import { isPocCoreModule } from "../../packages/backends/browser/wasm-types";
 
 function validModule() {
   return {

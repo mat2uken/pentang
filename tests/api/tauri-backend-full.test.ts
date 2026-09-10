@@ -3,7 +3,7 @@ import {
   createTauriBackend,
   createTauriBackendForTest,
   createTauriBackendWithDeps,
-} from "../../src/backends/tauri/index";
+} from "../../packages/backends/tauri/index";
 
 function okInfo() {
   return {

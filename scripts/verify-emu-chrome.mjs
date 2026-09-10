@@ -11,7 +11,7 @@ import { parseKVArgs, ROOT } from "./lib.mjs";
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 
 function usage() {
-  return `usage: node scripts/verify-emu-chrome.mjs [--serial emulator-5554 --base / --port 4173 --out reports/local/emu-chrome-wandroid]`;
+  return `usage: node scripts/verify-emu-chrome.mjs [--serial emulator-5554 --base / --port 4173 --out research/reports/local/emu-chrome-wandroid]`;
 }
 
 const { kv } = parseKVArgs(process.argv.slice(2));
@@ -24,7 +24,7 @@ for (const k of Object.keys(kv)) {
 const serial = kv["serial"] ?? "emulator-5554";
 const base = kv["base"] ?? "/";
 const port = Number(kv["port"] ?? "4173");
-const outRel = kv["out"] ?? "reports/local/emu-chrome-wandroid";
+const outRel = kv["out"] ?? "research/reports/local/emu-chrome-wandroid";
 
 function adb(...args) {
   const res = spawnSync("adb", ["-s", serial, ...args], { cwd: ROOT, encoding: "utf-8", timeout: 30000 });

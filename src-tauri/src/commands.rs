@@ -111,7 +111,7 @@ fn as_int32(v: &serde_json::Value) -> Option<i32> {
 }
 
 // request: serde_json::Valueで受けて明示的に検査する。
-// 検査順は docs/04-contracts.md に合わせる:
+// 検査順は research/docs/04-contracts.md に合わせる:
 // 必須field存在→values配列→長さ→各要素/multiplier/offsetのint32性。
 // 未知fieldはINVALID_ARGUMENT。疎配列はJSON化時点でnull等になるためINVALID。
 // serde_json::Mapは所有fieldのみ持つため、所有検査はcontains_keyで十分。

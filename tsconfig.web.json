@@ -4,8 +4,8 @@
     "lib": ["ES2022", "DOM"],
     "types": ["vite/client"],
     "paths": {
-      "@backend": ["./src/backends/browser/index.ts"]
+      "@backend": ["./packages/backends/browser/index.ts"]
     }
   },
-  "include": ["src/main.ts", "src/ui.ts", "src/api/**/*.ts", "src/backends/browser/**/*.ts", "src/backends/request-state.ts", "src/self-test/**/*.ts", "index.html", "vite.config.ts", "tests/web/harness.ts"]
+  "include": ["apps/demo/main.ts", "apps/demo/ui.ts", "apps/demo/self-test/**/*.ts", "packages/api/**/*.ts", "packages/backends/browser/**/*.ts", "packages/backends/request-state.ts", "packages/backends/pipeline.ts", "index.html", "vite.config.ts", "research/web/harness.ts"]
 }

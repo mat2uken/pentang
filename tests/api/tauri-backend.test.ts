@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createTauriBackendForTest,
   createTauriBackendWithDeps,
-} from "../../src/backends/tauri/index";
+} from "../../packages/backends/tauri/index";
 
 function okInfo() {
   return {

@@ -106,9 +106,9 @@ const record = {
   base,
   builtAt: new Date().toISOString(),
   sources: {
-    "cpp/src/core.cpp": sha256File(path.join(ROOT, "cpp/src/core.cpp")),
-    "cpp/include/poc_core.h": sha256File(path.join(ROOT, "cpp/include/poc_core.h")),
-    "tests/fixtures/golden-vectors.json": sha256File(path.join(ROOT, "tests/fixtures/golden-vectors.json")),
+    "packages/core/src/core.cpp": sha256File(path.join(ROOT, "packages/core/src/core.cpp")),
+    "packages/core/include/poc_core.h": sha256File(path.join(ROOT, "packages/core/include/poc_core.h")),
+    "packages/api/fixtures/golden-vectors.json": sha256File(path.join(ROOT, "packages/api/fixtures/golden-vectors.json")),
     "package-lock.json": sha256File(path.join(ROOT, "package-lock.json")),
     "Cargo.lock": existsSync(path.join(ROOT, "Cargo.lock")) ? sha256File(path.join(ROOT, "Cargo.lock")) : null,
     "toolchains.lock.json": sha256File(path.join(ROOT, "toolchains.lock.json")),

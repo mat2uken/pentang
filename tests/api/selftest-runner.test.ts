@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { runSelfTest } from "../../src/self-test/runner";
-import type { ApplicationApi } from "../../src/api/application-api";
-import { validateTransformRequest } from "../../src/api/validation";
+import { runSelfTest } from "../../apps/demo/self-test/runner";
+import type { ApplicationApi } from "../../packages/api/application-api";
+import { validateTransformRequest } from "../../packages/api/validation";
 
 function makeApi(opts: {
   transformImpl?: (req: { values: readonly number[]; multiplier: number; offset: number }) => Promise<{ values: number[]; checksum: number }>;

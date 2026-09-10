@@ -4,5 +4,5 @@
     "lib": ["ES2022", "WebWorker"],
     "types": []
   },
-  "include": ["src/backends/browser/core.worker.ts", "src/backends/browser/worker-protocol.ts", "src/backends/browser/wasm-types.ts", "src/api/*.ts"]
+  "include": ["packages/backends/browser/core.worker.ts", "packages/backends/browser/worker-protocol.ts", "packages/backends/browser/wasm-types.ts", "packages/api/*.ts"]
 }

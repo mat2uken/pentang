@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { APPLICATION_API_VERSION, CORE_ABI_VERSION, MAX_VALUES } from "../../src/api/application-api";
+import { APPLICATION_API_VERSION, CORE_ABI_VERSION, MAX_VALUES } from "../../packages/api/application-api";
 import {
   validateRuntimeInfo,
   validateTransformRequest,
   validateTransformResult,
-} from "../../src/api/validation";
+} from "../../packages/api/validation";
 
 describe("contract constants (v1 wire固定)", () => {
   it("apiVersion=1・abiVersion=1・maxValues=4096 (変更時は全言語・全試験の更新が必要)", () => {

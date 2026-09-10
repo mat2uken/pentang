@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RequestState } from "../../src/backends/request-state";
+import { RequestState } from "../../packages/backends/request-state";
 
 describe("request-state (L-01/L-02/L-03)", () => {
   it("life-01: 8要求受理・逆順解決・pending解放", () => {

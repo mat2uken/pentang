@@ -4,7 +4,7 @@ describe("runner branches: throw without code + missing max", () => {
   it("throw string without code for valid + max", async () => {
     vi.resetModules();
     // use real fixture but impl throws string
-    const { runSelfTest } = await import("../../src/self-test/runner");
+    const { runSelfTest } = await import("../../apps/demo/self-test/runner");
     const api = {
       getInfo: async () => ({}),
       transform: async (req: unknown) => {
@@ -18,7 +18,7 @@ describe("runner branches: throw without code + missing max", () => {
           throw new Error("max boom");
         }
         // for invalid cases, behave correctly via validation
-        const { validateTransformRequest } = await import("../../src/api/validation");
+        const { validateTransformRequest } = await import("../../packages/api/validation");
         const v = validateTransformRequest(req as unknown);
         if (!v.ok) throw v.error;
         const s = v.validated.snapshot();
@@ -36,12 +36,12 @@ describe("runner branches: throw without code + missing max", () => {
   });
 
   it("value mismatch branches (length, every, checksum)", async () => {
-    const { runSelfTest } = await import("../../src/self-test/runner");
+    const { runSelfTest } = await import("../../apps/demo/self-test/runner");
     // length mismatch for basic
     const apiLen = {
       getInfo: async () => ({}),
       transform: async (req: unknown) => {
-        const { validateTransformRequest } = await import("../../src/api/validation");
+        const { validateTransformRequest } = await import("../../packages/api/validation");
         const v = validateTransformRequest(req as unknown);
         if (!v.ok) throw v.error;
         const s = v.validated.snapshot();
@@ -63,7 +63,7 @@ describe("runner branches: throw without code + missing max", () => {
     const apiVal = {
       getInfo: async () => ({}),
       transform: async (req: unknown) => {
-        const { validateTransformRequest } = await import("../../src/api/validation");
+        const { validateTransformRequest } = await import("../../packages/api/validation");
         const v = validateTransformRequest(req as unknown);
         if (!v.ok) throw v.error;
         const s = v.validated.snapshot();
@@ -84,7 +84,7 @@ describe("runner branches: throw without code + missing max", () => {
     const apiSum = {
       getInfo: async () => ({}),
       transform: async (req: unknown) => {
-        const { validateTransformRequest } = await import("../../src/api/validation");
+        const { validateTransformRequest } = await import("../../packages/api/validation");
         const v = validateTransformRequest(req as unknown);
         if (!v.ok) throw v.error;
         const s = v.validated.snapshot();

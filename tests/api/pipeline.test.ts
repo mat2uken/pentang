@@ -3,7 +3,7 @@ import {
   checkResultLength,
   isSingleFailure,
   toErrorCode,
-} from "../../src/backends/pipeline";
+} from "../../packages/backends/pipeline";
 
 describe("pipeline shared helpers", () => {
   it("isSingleFailure: 単発/致命の分類", () => {

@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@backend": "/src/backends/tauri/index.ts",
+      "@backend": "/packages/backends/tauri/index.ts",
     },
   },
   test: {
@@ -13,11 +13,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
-      include: ["src/**/*.ts"],
+      include: ["packages/**/*.ts", "apps/**/*.ts"],
       exclude: [
-        "src/**/*.d.ts",
+        "packages/**/*.d.ts",
+        "apps/**/*.d.ts",
         // main.tsは起動結線のみでE2E/実機で検証するため unit 計測から除外する。
-        "src/main.ts",
+        "apps/demo/main.ts",
       ],
       thresholds: {
         statements: 90,

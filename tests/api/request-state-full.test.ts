@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RequestState } from "../../src/backends/request-state";
+import { RequestState } from "../../packages/backends/request-state";
 
 describe("request-state full branches", () => {
   it("markReady only from creating; markInitFailed clears and onFatal", () => {

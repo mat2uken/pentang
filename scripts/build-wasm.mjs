@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // build-wasm.mjs — 同一C++→mjs/wasm。生成先は web-public/wasm/。
-// docs/05-build-run.md の引数を配列で組み立てる。shell貼り付け用ではない。
+// research/docs/05-build-run.md の引数を配列で組み立てる。shell貼り付け用ではない。
 // emsdkの有効化済み環境を呼び出し側で渡す (source ~/emsdk/emsdk_env.sh)。
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -37,14 +37,14 @@ function main() {
   }
   console.log(`em++: ${emxx} (${emVersion(emxx)})`);
 
-  const src = path.join(ROOT, "cpp/src/core.cpp");
-  const include = path.join(ROOT, "cpp/include");
+  const src = path.join(ROOT, "packages/core/src/core.cpp");
+  const include = path.join(ROOT, "packages/core/include");
   if (!existsSync(src) || !existsSync(include)) {
     console.error(`missing ${src} or ${include}`);
     process.exit(1);
   }
 
-  // docs/05 の引数
+  // docs/05 (research/docs/05-build-run.md) の引数
   const args = [
     src,
     "-I",
@@ -113,8 +113,8 @@ function main() {
   const record = {
     emxx,
     emVersion: emVersion(emxx),
-    src: `cpp/src/core.cpp sha256=${sha256File(src)}`,
-    header: `cpp/include/poc_core.h sha256=${sha256File(path.join(include, "poc_core.h"))}`,
+    src: `packages/core/src/core.cpp sha256=${sha256File(src)}`,
+    header: `packages/core/include/poc_core.h sha256=${sha256File(path.join(include, "poc_core.h"))}`,
     args,
     outputs: {
       "web-public/wasm/poc-core.mjs": sha256File(outMjs),

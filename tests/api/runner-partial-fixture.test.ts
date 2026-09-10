@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 // fixture欠落・部分欠落の分岐を covering する。製品fixtureとは別名でmockする。
-vi.mock("../../tests/fixtures/golden-vectors.json", () => ({
+vi.mock("../../packages/api/fixtures/golden-vectors.json", () => ({
   default: {
     valid: [
       {
@@ -18,8 +18,8 @@ vi.mock("../../tests/fixtures/golden-vectors.json", () => ({
   },
 }));
 
-import { runSelfTest } from "../../src/self-test/runner";
-import { validateTransformRequest } from "../../src/api/validation";
+import { runSelfTest } from "../../apps/demo/self-test/runner";
+import { validateTransformRequest } from "../../packages/api/validation";
 
 describe("runner missing/partial fixture", () => {
   it("maximum-lengthなし・部分fieldでも動作する", async () => {

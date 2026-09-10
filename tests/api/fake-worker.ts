@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { WORKER_PROTOCOL_VERSION } from "../../src/backends/browser/worker-protocol";
+import { WORKER_PROTOCOL_VERSION } from "../../packages/backends/browser/worker-protocol";
 
 // BrowserBackend試験用の最小fake Worker。共有して三重管理を防ぐ。
 // postMessageで即時に正規返信を返す。onPostで応答の差し替え、hangInitでinit無応答、

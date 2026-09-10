@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // doctor -- --target <web|native|android|ios> --phase <tools|build|run>
-// phase既定build。仕様は docs/01-environment.md。
+// phase既定build。仕様は research/docs/01-environment.md。
 // 読み取り専用: 自動install、SDK変更、実機起動、署名変更を行わない。
 import { existsSync } from "node:fs";
 import path from "node:path";

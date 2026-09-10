@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WORKER_PROTOCOL_VERSION } from "../../src/backends/browser/worker-protocol";
+import { WORKER_PROTOCOL_VERSION } from "../../packages/backends/browser/worker-protocol";
 
 type MockSelf = {
   location: { origin: string };
@@ -67,7 +67,7 @@ function makeMockModule(overrides: Record<string, unknown> = {}) {
 describe("worker pure helpers", () => {
   it("isSafePositiveInt", async () => {
     setupSelf();
-    const mod = await import("../../src/backends/browser/core.worker");
+    const mod = await import("../../packages/backends/browser/core.worker");
     expect(mod.isSafePositiveInt(1)).toBe(true);
     expect(mod.isSafePositiveInt(0)).toBe(false);
     expect(mod.isSafePositiveInt(-1)).toBe(false);
@@ -81,7 +81,7 @@ describe("worker pure helpers", () => {
     const mock = setupSelf("https://example.test");
     // need self.location for checkUrls (it reads self.location.origin)
     (globalThis as unknown as { self: unknown }).self = mock as unknown as DedicatedWorkerGlobalScope;
-    const mod = await import("../../src/backends/browser/core.worker");
+    const mod = await import("../../packages/backends/browser/core.worker");
     const base = "https://example.test";
     expect(mod.checkUrls(`${base}/wasm/poc-core.mjs`, `${base}/wasm/poc-core.wasm`)).toBeNull();
     expect(mod.checkUrls(123, `${base}/wasm/poc-core.wasm`)).not.toBeNull();
@@ -102,7 +102,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
   });
 
   async function loadWorker() {
-    const mod = await import("../../src/backends/browser/core.worker");
+    const mod = await import("../../packages/backends/browser/core.worker");
     mod.__resetWorkerForTest();
     const selfMock = (globalThis as unknown as { self: MockSelf }).self;
     selfMock.messages = [];

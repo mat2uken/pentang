@@ -5,14 +5,14 @@ vi.mock("@backend", () => ({
   createBackend: vi.fn(),
 }));
 
-vi.mock("../../src/self-test/runner", () => ({
+vi.mock("../../apps/demo/self-test/runner", () => ({
   runSelfTest: vi.fn(),
 }));
 
 import { createBackend } from "@backend";
-import { runSelfTest } from "../../src/self-test/runner";
-import { boot } from "../../src/ui";
-import { validateTransformRequest } from "../../src/api/validation";
+import { runSelfTest } from "../../apps/demo/self-test/runner";
+import { boot } from "../../apps/demo/ui";
+import { validateTransformRequest } from "../../packages/api/validation";
 
 const mockedCreateBackend = createBackend as unknown as ReturnType<typeof vi.fn>;
 const mockedRunSelfTest = runSelfTest as unknown as ReturnType<typeof vi.fn>;

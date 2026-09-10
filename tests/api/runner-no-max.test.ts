@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 // maximum-length自体がないfixture。runnerの欠落分岐を covering する。
-vi.mock("../../tests/fixtures/golden-vectors.json", () => ({
+vi.mock("../../packages/api/fixtures/golden-vectors.json", () => ({
   default: {
     valid: [
       {
@@ -14,8 +14,8 @@ vi.mock("../../tests/fixtures/golden-vectors.json", () => ({
   },
 }));
 
-import { runSelfTest } from "../../src/self-test/runner";
-import { validateTransformRequest } from "../../src/api/validation";
+import { runSelfTest } from "../../apps/demo/self-test/runner";
+import { validateTransformRequest } from "../../packages/api/validation";
 
 describe("runner without maximum-length", () => {
   it("生成ケースなしでもvalid分は成功する", async () => {

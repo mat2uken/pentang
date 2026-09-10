@@ -1,56 +1,28 @@
 # Common Core PoC
 
-同じHTML/CSS/TypeScript UIから、nativeではTauri＋Rust FFI、WebではWorker＋WASMを通して、同じC++処理を呼び出せるかを調べるPoC。機能は版情報の取得と整数配列の変換に絞る。
+同じ TypeScript UI から、native (Tauri + Rust FFI) と Web (Worker + WASM) で同じ C++ 処理を呼び出す PoC。機能は版情報の取得と整数配列の変換に絞る。
 
-- 目的・対象・完了条件: [docs/00-overview.md](docs/00-overview.md)
-- 実装工程: [docs/03-implementation-plan.md](docs/03-implementation-plan.md)
-- API/C ABI仕様: [docs/04-contracts.md](docs/04-contracts.md)
-- ビルド・起動: [docs/05-build-run.md](docs/05-build-run.md)
-- 検証・記録: [docs/06-verification.md](docs/06-verification.md)、[reports/verification-matrix.md](reports/verification-matrix.md)
-- 工程tracker: [reports/implementation-tracker.md](reports/implementation-tracker.md)
+## 構成
 
-## 初回必須対象
-
-N-MAC / N-IOS-SIM / N-ANDROID-EMU / N-WIN / W-CHROMIUM / W-FIREFOX / W-SAFARI / W-IOS / W-ANDROID。後続: N-IOS-DEVICE / N-ANDROID-DEVICE。詳細は docs/00-overview.md。
-
-## 現在の段階
-
-M2-04 実施中。macOS実FFI・mobile最終リンク・Web実Worker/WASM (Chromium root/subpath) まで確認済み。実Safari・Firefox・mobileブラウザ・Windowsは未検証。
+- `packages/` — ライブラリ (ビルド・利用する部分)。詳細は [packages/README.md](packages/README.md)
+  - `core/` C++ 共通コア / `ffi/` Rust FFI 共通 / `api/` TS 共通 API / `backends/` 共有 + プラットフォーム別 (browser / tauri)
+- `apps/demo/` + `src-tauri/` + `index.html` — ライブラリ利用側の PoC デモ (UI・ネイティブシェル)。詳細は [apps/README.md](apps/README.md)
+- `research/` — 調査・検証の集約 (計画文書・検証表・実行記録・E2E)。詳細は [research/README.md](research/README.md)
+- `scripts/` / `tests/api/` — ビルド・検証ツールとライブラリ単体試験
 
 ## 使い方
 
-- Node 24.20.0 (`/opt/homebrew/opt/node@24/bin`) を使用。ホスト既定は変更しない。
+- Node 24.20.0 を使用 (ホスト既定は変更しない)。
   ```sh
   export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
   npm ci
   npm run doctor -- --target <web|native|android|ios> --phase <tools|build|run>
   ```
-- Web (emsdk 6.0.9を有効化して実行):
-  ```sh
-  source ~/emsdk/emsdk_env.sh
-  npm run doctor -- --target web --phase build
-  npm run build:web -- --base /
-  npm run preview:web -- --base / --port 4173
-  # subpathは停止後に別runで
-  npm run build:web -- --base /poc/
-  npm run preview:web -- --base /poc/ --port 4173
-  ```
-- macOS native:
-  ```sh
-  npm run doctor -- --target native --phase build
-  cargo test -p poc-core-ffi --locked
-  npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app
-  ```
-- 開発配信 (M0のVite単独bootstrapは最終scriptへ置き換え済み):
-  - Web開発: `npm run dev:web`
-  - Native UI: `npm run dev:native-ui`
-- 詳細は docs/05-build-run.md と reports を参照。
+- 型検査・試験: `npm run typecheck -- --scope all` / `npm run test:api` / `npm run test:core` / `cargo test -p poc-core-ffi --locked`
+- Web (emsdk 6.0.9 を有効化して実行): `npm run build:web -- --base /` → `npm run preview:web`
+- macOS native: `npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app`
+- 開発配信: `npm run dev:web` (Web) / `npm run dev:native-ui` (Native UI)
 
-## 配置 (docs/04-contracts.md)
+## 状態
 
-- `src/api/application-api.ts` ← `docs/reference/poc-v1/contracts/application-api.ts` (hash一致)
-- `cpp/include/poc_core.h` ← `docs/reference/poc-v1/contracts/poc_core.h` (hash一致)
-- `src/backends/browser/worker-protocol.ts` ← `docs/reference/poc-v1/contracts/worker-protocol.ts` (import 1行のみ変更: `./application-api` → `../../api/application-api`)
-- `tests/fixtures/golden-vectors.json` ← `docs/reference/poc-v1/fixtures/golden-vectors.json` (hash一致)
-
-参照元 `docs/reference/poc-v1` は過去版として固定し、実行コードから直接importしない。
+検証の最新状況は [research/README.md](research/README.md) と [research/reports/verification-matrix.md](research/reports/verification-matrix.md) を参照。
