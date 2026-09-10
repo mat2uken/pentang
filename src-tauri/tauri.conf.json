@@ -21,7 +21,7 @@
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'",
-      "capabilities": ["main-poc"]
+      "capabilities": ["main-poc", "wdio-desktop"]
     }
   },
   "bundle": {

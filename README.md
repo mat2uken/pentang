@@ -24,6 +24,8 @@
 - macOS native: `npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app`
 - 開発配信: `npm run dev:web` (Web) / `npm run dev:native-ui` (Native UI)
 
+自動検証ラボは `scripts/lab.mjs` を入口にする。まず `npm run lab -- setup --apply --target all` で依存関係とツールを確認し、変更が小さいときは `npm run lab -- run --profile affected --changed`、配布物と接続端末まで確認するときは `npm run lab -- run --profile full --android-serial <adb-serial> --preview-host <LAN-address>` を使う。実行結果は `.lab-state/runs/<run-id>/` に保存される。詳細は [tools/device-lab/README.md](tools/device-lab/README.md) を参照。
+
 ## 状態
 
 検証の最新状況は [docs/README.md](docs/README.md) と [docs/reports/verification-matrix.md](docs/reports/verification-matrix.md) を参照。

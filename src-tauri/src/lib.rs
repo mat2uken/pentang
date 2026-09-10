@@ -3,7 +3,19 @@ mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // The embedded WebDriver server is intentionally debug-only. Release builds
+    // must remain black-box and must not expose an automation HTTP endpoint.
+    #[cfg(all(
+        debug_assertions,
+        any(target_os = "macos", target_os = "windows", target_os = "linux")
+    ))]
+    let builder = builder
+        .plugin(tauri_plugin_wdio::init())
+        .plugin(tauri_plugin_wdio_webdriver::init());
+
+    builder
         .invoke_handler(tauri::generate_handler![
             commands::poc_get_info,
             commands::poc_transform

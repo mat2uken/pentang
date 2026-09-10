@@ -7,5 +7,5 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["../vite.config.ts", "../scripts/lib.mjs", "../scripts/doctor.mjs", "../scripts/typecheck.mjs", "../scripts/build-ui.mjs"]
+  "include": ["../vite.config.ts", "../scripts/lib.mjs", "../scripts/doctor.mjs", "../scripts/typecheck.mjs", "../scripts/build-ui.mjs", "../scripts/lab-core.mjs", "../scripts/lab-core.d.mts"]
 }

@@ -141,6 +141,14 @@ function findBox(boxesText, needle) {
   return null;
 }
 
+function hasExpectedResult(text) {
+  const compact = String(text ?? "")
+    .normalize("NFKC")
+    .replace(/\s+/g, "")
+    .replace(/[，、]/g, ",");
+  return /checksum=15(?:$|[^\d])/.test(compact) && /(?:^|[^\d])3,5,7(?:$|[^\d])/.test(compact);
+}
+
 async function main() {
   const outDir = path.join(ROOT, outRel);
   mkdirSync(outDir, { recursive: true });
@@ -193,7 +201,7 @@ async function main() {
   // 4. UI-03: 実行ボタン探索→タップ→checksum確認
   // window直取りshotでboxesを探し、同一window座標系でタップする (推定マージン不使用)。
   const winShot = path.join(outDir, "sim-safari-window.png");
-  async function tapAndCheck(needle, checkNeedles, label) {
+  async function tapAndCheck(needle, checkNeedles, label, predicate = null) {
     for (let attempt = 1; attempt <= 4; attempt++) {
       const frame = windowScreenshot(winShot);
       const boxes = ocrBoxes(winShot);
@@ -227,10 +235,7 @@ async function main() {
       simScreenshot(shot);
       const after = ocrText(shot);
       log(`${label} after tap ocr: ${after.slice(0, 150).replace(/\n/g, " | ")}`);
-      let ok = true;
-      for (const c of checkNeedles) {
-        if (!after.includes(c)) ok = false;
-      }
+      const ok = predicate ? predicate(after) : checkNeedles.every((c) => after.includes(c));
       if (ok) return after;
       log(`${label} check missing ${checkNeedles.join(",")} retry`);
     }
@@ -240,9 +245,8 @@ async function main() {
     return "";
   }
 
-  const afterRun = await tapAndCheck("実行", ["15"], "UI-03");
-  // checksum=15の表記はOCRで「15」のみでも可とするが、result行の確認として「15」を要求。より厳密には「3,5,7」も期待するがOCR誤読に備えて15のみ必須。
-  log(`UI-03 PASS (contains 15)`);
+  const afterRun = await tapAndCheck("実行", ["checksum=15", "[3,5,7]"], "UI-03", hasExpectedResult);
+  log(`UI-03 PASS ([3,5,7]/15)`);
 
   const afterSelf = await tapAndCheck("self-test", ["11/11"], "UI-04");
   log(`UI-04 PASS (11/11)`);
@@ -264,7 +268,7 @@ async function main() {
   log("W-02 PASS");
 
   const runMd = `# 実行記録: sim-safari-wios (W-IOS Sim Safari)\n\n| 項目 | 値 |\n|---|---|\n| 日時 | ${new Date().toISOString()} |\n| 対象ID / 試験ID | W-IOS / UI-01〜UI-05、W-01、W-02 |\n| 実行環境 | iPhone 16 iOS 18.5 Sim (booted)、Sim Safari |\n| 到達URL | ${simUrl} (preview base=/ port=4174 host=0.0.0.0) |\n| Safari実版 | host Safari ${safariVer} (Sim SafariはOS付属、版推測転記なし) |\n| 結果 | PASS |\n\n- UI-01/UI-02: PASS (ready + wasm-worker/dedicated-worker, OCR)\n- UI-03: PASS (contains 15)\n- UI-04: PASS (11/11)\n- UI-05: PASS (disposed->ready)\n- W-02: PASS\n- 画面: sim-safari.png\n`;
-  writeFileSync(path.join(outDir, "run.md"), runMd);
+  writeFileSync(path.join(outDir, "run.md"), runMd.replace("contains 15", "[3,5,7]/15; OCR normalized exact result"));
   // 最終shotを保存 (既にshotに保存済み)
   log("PASS W-IOS (Sim Safari)");
 }

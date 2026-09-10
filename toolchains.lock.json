@@ -17,7 +17,8 @@
     "cmake": "4.3.4",
     "testRunner": "vitest@5.0.0",
     "browserTestRunner": "@playwright/test@1.63.0",
-    "createTauriApp": "4.7.4"
+    "createTauriApp": "4.7.4",
+    "pymobiledevice3": "11.12.1"
   },
   "web": {
     "status": "RESOLVED_M2",

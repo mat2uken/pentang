@@ -89,6 +89,14 @@ function findBox(boxesText, needle) {
   return null;
 }
 
+function hasExpectedResult(text) {
+  const compact = String(text ?? "")
+    .normalize("NFKC")
+    .replace(/\s+/g, "")
+    .replace(/[，、]/g, ",");
+  return /checksum=15(?:$|[^\d])/.test(compact) && /(?:^|[^\d])3,5,7(?:$|[^\d])/.test(compact);
+}
+
 function screenSize() {
   const r = adb("shell", "wm", "size");
   const m = (r.stdout ?? "").match(/(\d+)x(\d+)/);
@@ -109,7 +117,7 @@ async function waitOcr(shotPath, needles, timeoutMs, label) {
   return "";
 }
 
-async function tapOcr(shotPath, needle, checkNeedles, label) {
+async function tapOcr(shotPath, needle, checkNeedles, label, predicate = null, settleMs = 3500) {
   const { w: SW, h: SH } = screenSize();
   for (let attempt = 1; attempt <= 3; attempt++) {
     adbShot(shotPath);
@@ -134,10 +142,14 @@ async function tapOcr(shotPath, needle, checkNeedles, label) {
     const px = Math.round(nx * SW), py = Math.round(ny * SH);
     const t = adb("shell", "input", "tap", String(px), String(py));
     if (t.status !== 0) fail(`input tap failed`);
-    await new Promise((r) => setTimeout(r, 3500));
-    adbShot(shotPath);
-    const after = ocrText(shotPath);
-    if (checkNeedles.every((c) => after.includes(c))) return after;
+    let after = "";
+    const settleDeadline = Date.now() + settleMs;
+    do {
+      await new Promise((r) => setTimeout(r, Math.min(1500, Math.max(250, settleDeadline - Date.now()))));
+      adbShot(shotPath);
+      after = ocrText(shotPath);
+      if (predicate ? predicate(after) : checkNeedles.every((c) => after.includes(c))) return after;
+    } while (Date.now() < settleDeadline);
     log(`${label} check missing ${checkNeedles.join(",")} retry (ocr=${after.slice(0, 100).replace(/\n/g, " | ")})`);
   }
   adbShot(shotPath);
@@ -193,13 +205,13 @@ async function main() {
     log("N-ANDROID-DEVICE UI-01/UI-02 PASS via OCR (ready + tauri-native/android)");
   }
   // N UI-03〜05 (OCR taps、Xperia実測済み配置)
-  await tapOcr(nativeShot, "実行", ["checksum=15"], "N UI-03");
+  await tapOcr(nativeShot, "実行", ["checksum=15", "[3,5,7]"], "N UI-03", hasExpectedResult);
   log("N UI-03 PASS ([3,5,7]/15)");
   await tapOcr(nativeShot, "self-test", ["11/11"], "N UI-04");
   log("N UI-04 PASS (11/11)");
   await tapOcr(nativeShot, "破棄", ["disposed"], "N UI-05-dispose");
   log("N UI-05 dispose PASS");
-  await tapOcr(nativeShot, "再初期化", ["ready"], "N UI-05-reinit");
+  await tapOcr(nativeShot, "再初期化", ["ready"], "N UI-05-reinit", null, 20000);
   log("N UI-05 reinit PASS");
 
   // W-ANDROID-DEVICE: ChromeでLAN URLを開き、uiautomatorで検証 (emu-chromeと同一)
@@ -227,10 +239,10 @@ async function main() {
     const wocr = await waitOcr(chromeShot, ["ready", "wasm-worker"], 60000, "W UI-01/UI-02");
     log("W-ANDROID-DEVICE UI-01/UI-02 PASS via OCR");
   }
-  await tapOcr(chromeShot, "実行", ["checksum=15"], "W UI-03");
+  await tapOcr(chromeShot, "実行", ["checksum=15", "[3,5,7]"], "W UI-03", hasExpectedResult);
   await tapOcr(chromeShot, "self-test", ["11/11"], "W UI-04");
   await tapOcr(chromeShot, "破棄", ["disposed"], "W UI-05-dispose");
-  await tapOcr(chromeShot, "再初期化", ["ready"], "W UI-05-reinit");
+  await tapOcr(chromeShot, "再初期化", ["ready"], "W UI-05-reinit", null, 20000);
   log("W-ANDROID-DEVICE UI-03〜05 PASS via OCR");
 
   // W-02 headers (host側)

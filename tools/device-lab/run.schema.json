@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pentang.local/schemas/device-lab-run.json",
+  "title": "pentang validation lab run",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "status",
+    "verification",
+    "profile",
+    "profiles",
+    "startedAt",
+    "source",
+    "steps"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["running", "passed", "failed", "blocked", "cancelled"] },
+    "verification": { "enum": ["not_run", "passed", "failed", "blocked", "inconclusive"] },
+    "profile": { "type": "string" },
+    "profiles": { "type": "array", "items": { "type": "string" } },
+    "requestedTargets": { "type": "array", "items": { "type": "string" } },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": ["string", "null"], "format": "date-time" },
+    "source": {
+      "type": "object",
+      "required": ["branch", "head", "dirty", "sourceHash"],
+      "properties": {
+        "branch": { "type": "string" },
+        "head": { "type": "string" },
+        "dirty": { "type": "boolean" },
+        "sourceHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": true
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["running", "passed", "failed", "blocked", "cancelled"] },
+          "command": { "type": "string" },
+          "exitCode": { "type": ["integer", "null"] },
+          "pid": { "type": ["integer", "null"] },
+          "durationMs": { "type": "number", "minimum": 0 },
+          "artifacts": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "services": { "type": "array" },
+    "leases": { "type": "array" },
+    "artifacts": { "type": "array" },
+    "manualActions": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

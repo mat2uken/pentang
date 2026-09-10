@@ -17,3 +17,9 @@ tauri = { version = "=2.11.5", features = [] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151" }
 poc-core-ffi = { path = "../packages/ffi" }
+
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+# Debug-only WebDriver control API used by the local packaged-E2E runner.
+tauri-plugin-wdio = "=1.4.0"
+# Both testing plugins are registered only in debug builds; release builds do not expose their commands.
+tauri-plugin-wdio-webdriver = "=1.4.0"

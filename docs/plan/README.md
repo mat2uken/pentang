@@ -1,6 +1,6 @@
 # 最初のPoC — 実施計画 v1.2
 
-更新日: 2026-09-08。状態: **計画のレビュー・具体化まで完了。アプリ実装・ビルド・起動試験は未実施**。
+更新日: 2026-09-10。状態: **計画のレビュー・具体化、自動検証ラボの実装、Xperia と iPhone XS の実機検証まで完了。Windows・release黒箱は後続**。
 
 同じHTML/CSS/TypeScript UIから、nativeではTauri＋Rust FFI、WebではWorker＋WASMを通して、同じC++処理を呼び出せるかを調べる。機能は版情報の取得と整数配列の変換に絞る。
 
@@ -23,6 +23,7 @@
 | [10-sources.md](10-sources.md) | 照合した公式資料と用途 |
 | [11-review-traceability.md](11-review-traceability.md) | 前回12件と追加8項目の対処、担当ステップ、確認試験 |
 | [12-test-case-catalog.md](12-test-case-catalog.md) | 具体的な入力・故障条件・期待code・状態・回収条件 |
+| [13-automated-validation-lab.md](13-automated-validation-lab.md) | 自動検証ラボの構成、冪等セットアップ、profile運用、実施結果、後続作業 |
 
 ## 正本と参照資料
 
@@ -32,8 +33,7 @@
 
 ## 現在地と次の作業
 
-- 作業先はGit未初期化。レビュー開始時は既存の `docs/` のみで、branch・HEADは存在しなかった。
-- 旧計画の「Node 24 LTS」「iOS Simulator先行」「Android Emulatorのみ」を継承した。最新版の組み合わせやSDK適合は未検証。
-- 実装着手時はM0から開始する。今回の文書改訂を、SDK導入・Git初期化・アプリ実装・commit・pushの実施記録として扱わない。
-- 検証表は [templates/verification-matrix.md](templates/verification-matrix.md)、実行記録は [templates/run-record.md](templates/run-record.md)、版固定の雛形は [templates/toolchains.lock.example.json](templates/toolchains.lock.example.json) を使う。
-- 着手する人は03の工程表から [M0-01](implementation/01-setup-native.md#m0-01) へ進む。[工程tracker](templates/implementation-tracker.md) は全27ステップNOT_STARTEDで開始する。
+- 実装入口は `scripts/lab.mjs`、運用手順は [13-automated-validation-lab.md](13-automated-validation-lab.md) と `tools/device-lab/README.md` に移した。
+- `feature/automated-device-validation` 上で、`full` profile が host、Web、debug Tauri、Android実機までPASSした。現行作業状態の Xperia と iPhone XS 再検証は `devices` profile の run 記録に保存している。
+- iPhone XS の初回 `BLOCKED` は CoreDevice UUID と旧 pymobiledevice3 の経路差が原因だった。pymobiledevice3 11.12.1 の native RSD、hardware UDID 解決、devicectl による Safari URL起動、CDP の URL一致選択を追加し、現行 devices run で UI-01〜05 と W-02 まで PASS した。Windows、release黒箱、定期CIの実機jobは後続である。
+- 検証表は [templates/verification-matrix.md](templates/verification-matrix.md)、従来の工程詳細は [03-implementation-plan.md](03-implementation-plan.md)、自動検証の実装・運用は [13-automated-validation-lab.md](13-automated-validation-lab.md) を使う。

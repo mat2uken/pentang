@@ -10,6 +10,8 @@ PoC の計画・仕様・調査結果・検証記録・E2E を一箇所にまと
 - `reports/` — 検証表 (`verification-matrix.md`)・工程 tracker (`implementation-tracker.md`)・監査レポート (`implementation-report.md`)。`local/` は実測ログ (Git 対象外)
 - `verification/` — Playwright E2E (`basic.spec.ts`)。製品 E2E の正本
 - `harness/` — Web 検証用 harness (`harness.ts`, `worker-harness.html`, `run-harness.mjs`, `run-ui-check.mjs`)。通常 build・通常 E2E には混ぜない手動検証用
+- `tools/device-lab/` — 自動検証ラボの運用、run 記録スキーマ、実機選択と再実行手順
+- `.agents/skills/` — 環境準備、検証実行、シナリオ固定を同じ判断で進める repository skills
 
 ## 新規ドキュメントの置き場所
 
@@ -30,6 +32,6 @@ PoC の計画・仕様・調査結果・検証記録・E2E を一箇所にまと
 
 ## 現状 (要点のみ)
 
-- 必須 9 行中、N-MAC / N-IOS-SIM / N-ANDROID-EMU / W-CHROMIUM / W-FIREFOX / W-SAFARI / W-ANDROID / W-IOS は PASS、N-WIN は BLOCKED (ホスト未選定)。詳細は `reports/` を参照。
+- 自動検証ラボの `full` profile で host、Web（Chromium/Firefox）、debug Tauri WebView、Android native/Chrome 実機が PASS。現行作業状態で APK を再生成し、Xperia と iPhone XS を同じ `devices` profile から確認して PASS とした。iOS は CoreDevice UUID→hardware UDID 解決、pymobiledevice3 11.12.1 native RSD CDP、Safari URL起動、URL一致ページの画面操作まで自動化した。Windows、release黒箱は後続である。詳細は `plan/13-automated-validation-lab.md` と `tools/device-lab/README.md` を参照。
 - `plan/` 内のファイル配置・パス表記は計画当時のもので、現行配置と異なる場合がある (例: `src/api` → `packages/api`、`apps/demo` → `apps/poc-demo`、`research/` → `docs/`)。正は `packages/`・`apps/` の実ファイル。
 - 実行記録の雛形は `plan/templates/run-record.md` を使用する。

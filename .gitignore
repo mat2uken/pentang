@@ -23,6 +23,7 @@ src-tauri/gen/apple/DerivedData/
 
 # ローカル記録 (個人path/serial/生ログ)
 docs/reports/local/
+.lab-state/
 
 # OS / エディタ
 .DS_Store
