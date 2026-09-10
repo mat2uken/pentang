@@ -80,11 +80,32 @@ function simWindowFrame() {
   return { x: Number(pm[1]), y: Number(pm[2]), w: Number(sm[1]), h: Number(sm[2]) };
 }
 
-function tapSimNormalized(nx, ny) {
-  // nx,ny: Vision正規化ではなく、Simスクリーン左上原点の0-1 (x右、y下)
-  // Simulator window contentへのマッピング (bezel/title推定 + 過去の+25px補正はcliclick側で吸収されることを期待)
+function windowScreenshot(outPath) {
+  // Simulator window自体をscreencaptureで取得する。simctl shotはデバイス解像度
+  // (1179x2556) のためmacOS window座標への推定マッピングがずれていた (縦19px実測)。
+  // window直取りならVision正規化座標→screen座標が frame原点+nx*w で一意に決まる。
+  run("osascript", ["-e", 'tell application "Simulator" to activate']);
   const frame = simWindowFrame();
-  // 推定: titlebar 28 + bezel 12 上、左右bezel 10、下bezel 18 (iPhone Simの経験値)。contentは縦横比維持で中央配置。
+  const rect = `${frame.x},${frame.y},${frame.w},${frame.h}`;
+  const r = run("screencapture", ["-R" + rect, outPath]);
+  if (r.status !== 0) fail(`screencapture failed: ${r.stderr}`);
+  return frame;
+}
+
+function tapWindowNormalized(nx, ny, frame) {
+  // nx,ny: window画像左上原点の0-1 (x右、y下)。frameと同一座標系のため推定マージン不要。
+  const f = frame ?? simWindowFrame();
+  const px = Math.round(f.x + nx * f.w);
+  const py = Math.round(f.y + ny * f.h);
+  log(`tap window(${nx.toFixed(3)},${ny.toFixed(3)}) -> screen(${px},${py}) frame=${f.x},${f.y},${f.w},${f.h}`);
+  const r = run("cliclick", [`c:${px},${py}`]);
+  if (r.status !== 0) fail(`cliclick failed: ${r.stderr}`);
+}
+
+function tapSimNormalized(nx, ny) {
+  // 旧推定マッピング (後方互換のため残すが、tapsはtapWindowNormalizedを使用)。
+  // nx,ny: Simスクリーン左上原点の0-1 (x右、y下)
+  const frame = simWindowFrame();
   const chromeTop = 40;
   const chromeLeft = 10;
   const chromeRight = 10;
@@ -155,6 +176,8 @@ async function main() {
 
   // 画面下部のボタン reveal のため軽くスクロール (Sim Safariのページを上にドラッグ)
   {
+    run("osascript", ["-e", 'tell application "Simulator" to activate']);
+    await new Promise((r) => setTimeout(r, 800));
     const frame = simWindowFrame();
     const cx = Math.round(frame.x + frame.w / 2);
     const y1 = Math.round(frame.y + frame.h * 0.75);
@@ -168,34 +191,37 @@ async function main() {
   const safariVer = (run("osascript", ["-e", 'tell application "Safari" to return version']).stdout ?? "").trim();
 
   // 4. UI-03: 実行ボタン探索→タップ→checksum確認
-  // まずboxesで「実行」を探す。見つからなければ推定位置 (左30%, 下55%付近) を使用。
+  // window直取りshotでboxesを探し、同一window座標系でタップする (推定マージン不使用)。
+  const winShot = path.join(outDir, "sim-safari-window.png");
   async function tapAndCheck(needle, checkNeedles, label) {
     for (let attempt = 1; attempt <= 4; attempt++) {
-      simScreenshot(shot);
-      const boxes = ocrBoxes(shot);
+      const frame = windowScreenshot(winShot);
+      const boxes = ocrBoxes(winShot);
       const found = findBox(boxes, needle);
       if (found) {
-        log(`${label} found "${found.text}" at sim(${found.nx.toFixed(3)},${found.ny.toFixed(3)}) attempt=${attempt}`);
-        tapSimNormalized(found.nx, found.ny);
+        log(`${label} found "${found.text}" at window(${found.nx.toFixed(3)},${found.ny.toFixed(3)}) attempt=${attempt}`);
+        tapWindowNormalized(found.nx, found.ny, frame);
       } else if (needle === "実行") {
-        // 実行ボタンはOCR誤読しやすいため、self-testボタンの左隣を推定してタップ (Emu実測の配置: run左・self-test右・同y)
+        // 実行ボタンはOCR誤読しやすいため、self-testボタンの左隣を推定してタップ。
+        // window座標系での実測: self-test x~0.424 に対し実行は約0.14左 (Emu配置と一致)。
         const anchor = findBox(boxes, "self-test");
         if (anchor) {
           const nx = Math.max(0.05, anchor.nx - 0.14);
-          log(`${label} anchor self-test at (${anchor.nx.toFixed(3)},${anchor.ny.toFixed(3)}), tap left sim(${nx.toFixed(3)},${anchor.ny.toFixed(3)}) attempt=${attempt}`);
-          tapSimNormalized(nx, anchor.ny);
+          log(`${label} anchor self-test at (${anchor.nx.toFixed(3)},${anchor.ny.toFixed(3)}), tap left window(${nx.toFixed(3)},${anchor.ny.toFixed(3)}) attempt=${attempt}`);
+          tapWindowNormalized(nx, anchor.ny, frame);
         } else {
-          const fallback = { nx: 0.28, ny: 0.62 + attempt * 0.03 };
-          log(`${label} not found, fallback tap sim(${fallback.nx},${fallback.ny}) attempt=${attempt}`);
-          tapSimNormalized(fallback.nx, fallback.ny);
+          // window座標系fallback (window直取り実測: 実行~0.28, self-test~0.42付近、y~0.55)
+          const fallback = { nx: 0.28, ny: 0.55 + (attempt - 1) * 0.02 };
+          log(`${label} not found, fallback tap window(${fallback.nx},${fallback.ny}) attempt=${attempt}`);
+          tapWindowNormalized(fallback.nx, fallback.ny, frame);
         }
       } else {
-        // fallback推定: 実行は左下フォーム下 (x 0.28, y 0.62)、self-testは (0.42,0.62)、破棄 (0.58,0.62)、再初期化 (0.73,0.62) 付近 (Emu実測からの類推)
-        const basePos = { "self-test": { nx: 0.42, ny: 0.62 }, "破棄": { nx: 0.58, ny: 0.62 }, "再初期化": { nx: 0.73, ny: 0.62 } }[needle];
+        // window座標系fallback (直取り実測値)
+        const basePos = { "self-test": { nx: 0.424, ny: 0.546 }, "破棄": { nx: 0.57, ny: 0.546 }, "再初期化": { nx: 0.72, ny: 0.546 } }[needle];
         if (!basePos) fail(`no fallback for ${needle}`);
-        const ny = basePos.ny + (attempt - 1) * 0.03;
-        log(`${label} not found in OCR, fallback tap sim(${basePos.nx},${ny}) attempt=${attempt}`);
-        tapSimNormalized(basePos.nx, ny);
+        const ny = basePos.ny + (attempt - 1) * 0.015;
+        log(`${label} not found in OCR, fallback tap window(${basePos.nx},${ny}) attempt=${attempt}`);
+        tapWindowNormalized(basePos.nx, ny, frame);
       }
       await new Promise((r) => setTimeout(r, 2500));
       simScreenshot(shot);

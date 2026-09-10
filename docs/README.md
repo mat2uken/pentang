@@ -30,6 +30,6 @@ PoC の計画・仕様・調査結果・検証記録・E2E を一箇所にまと
 
 ## 現状 (要点のみ)
 
-- 必須 9 行中、N-MAC / N-IOS-SIM / N-ANDROID-EMU / W-CHROMIUM / W-FIREFOX / W-SAFARI / W-ANDROID は PASS 相当、W-IOS は PARTIAL、N-WIN は BLOCKED (ホスト未選定)。詳細は `reports/` を参照。
+- 必須 9 行中、N-MAC / N-IOS-SIM / N-ANDROID-EMU / W-CHROMIUM / W-FIREFOX / W-SAFARI / W-ANDROID / W-IOS は PASS、N-WIN は BLOCKED (ホスト未選定)。詳細は `reports/` を参照。
 - `plan/` 内のファイル配置・パス表記は計画当時のもので、現行配置と異なる場合がある (例: `src/api` → `packages/api`、`apps/demo` → `apps/poc-demo`、`research/` → `docs/`)。正は `packages/`・`apps/` の実ファイル。
 - 実行記録の雛形は `plan/templates/run-record.md` を使用する。

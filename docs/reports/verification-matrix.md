@@ -2,7 +2,7 @@
 
 - 採用source / commit: 未commitのためfile hashで識別 (local/m4-01/run.md)。HEAD de87224 docsのみ、実装untracked。commit/pushは別依頼待ち
 - toolchain lock hash: toolchains.lock.json 32a8c708c66b8ae1、package-lock e40969943 (coverage/jsdom追加後)、Cargo.lock f996a00083 (M4-01参照)
-- 総合判定: IN_PROGRESS (必須9行中8行PASS相当、N-WIN BLOCKED、W-IOS taps要再試行、実機はロックのためBLOCKED。詳細はM5-03へ)
+- 総合判定: IN_PROGRESS (必須9行中8行PASS、N-WIN BLOCKED。後続はN-ANDROID-DEVICE PASS、N-IOS-DEVICE nativeのみ残。詳細はM5-03へ)
 - 計画版: docs v1.2
 
 | ID | 必須/後続 | CPU・OS・SDK・browser | Build | Launch | C++ self-test | native同梱起動 | 共通試験 | run ID・理由 |
@@ -14,10 +14,10 @@
 | W-CHROMIUM | 必須 | Chromium 153 Headless Shell / Playwright 1.63.0 | PASS | PASS | PASS | N/A | PASS | root+subpath別build・別run e2e 2+2 PASSずつ |
 | W-FIREFOX | 必須 | Firefox 155.0 / Playwright 1.63.0 | PASS | PASS | PASS | N/A | PASS | root+subpath別build・別run e2e 2+2 PASSずつ (O6解消) |
 | W-SAFARI | 必須 | 実Safari 26.6.2 (実測、推測転記なし) | PASS | PASS | PASS | N/A | PASS | local/wsafari-root/subpath/run.md AppleScript全自動 UI-01〜04+W-02 PASS |
-| W-IOS | 必須 | Sim Safari (iPhone 16 iOS18.5 booted) / LAN到達 http://<host-lan-ip>:4174/ (例: 192.168.99.239) | PASS | PASS | PASS | N/A | PARTIAL | local/sim-safari-wios: UI-01/UI-02+W-02 PASS (OCR自動)、UI-03〜05はcliclick mapping不安定で要再試行。スクリプトverify-sim-safari.mjsは全自動・証拠付き (`--url` 必須) |
+| W-IOS | 必須 | Sim Safari (iPhone 16 iOS18.5 booted) / LAN到達 http://<host-lan-ip>:4174/ | PASS | PASS | PASS | N/A | PASS | local/sim-safari-wios/run.md verify-sim-safari.mjs全自動 UI-01〜05+W-02 PASS (window直取りマッピングで2回連続attempt=1)。実機参考: local/ios-device/run.md iPhone実機Safari UI-01〜05+W-02 PASS (verify-ios-device-web.mjs全自動、手動tap記録はrun-manual-20260910.md) |
 | W-ANDROID | 必須 | Emu Chrome 152.0.7977.82 / medium_phone / 到達 http://10.0.2.2:4173/ | PASS | PASS | PASS | N/A | PASS | local/emu-chrome-wandroid/run.md verify-emu-chrome.mjs全自動 UI-01〜05+W-02 PASS |
 | N-IOS-DEVICE | 後続 | iPhone実機 (pairedあり、署名・ロック未対応) | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | 初回はSim先行。実機署名・provisioning後に devicectl install で対応 (シリアルは記録省略) |
-| N-ANDROID-DEVICE | 後続 | Android実機 (XQ-DQ44 arm64-v8a sdk35 / 実機ロック中、シリアルは記録省略) | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | local/android-device/BLOCKED.md。verify-android-device.mjsで全自動化済み (`--serial`/`--preview-host` 必須、install+launch+dump+ tapsはemuと同一)。再開条件: ロック解除後に npm run verify:android-device -- --serial <adb-serial> --preview-host <host-lan-ip> |
+| N-ANDROID-DEVICE | 後続 | Android実機 (Sony XQ-DQ44 Android15 SDK35 arm64-v8a / Chrome 152.0.7977.82) | PASS | PASS | PASS | PASS | PASS | local/android-device/run.md verify-android-device.mjs全自動 (OCR: uiautomator null rootのためscreenshot+OCR、input tap)。N UI-01〜05 + W(Chrome実機 UI-01〜05+W-02) PASS |
 
 「共通試験」列は対象に適用する試験IDの集計。詳細は下表とrun記録へ記載する。W系列のroot/subpath結果はrunを分ける。Web buildを共用する場合は同じ成果物hashを参照する。
 

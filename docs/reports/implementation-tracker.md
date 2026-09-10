@@ -29,7 +29,7 @@
 | M4-03 | iOS Simulatorで検証 | DONE | N-IOS-SIM (75B3..., iPhone 16) | local/ios-sim-m4-03/run.md PASS (UI-03単独はself-test内basicで代替、本文参照) | Sim用.app、install/launch実績 |
 | M4-04 | Android Emulatorで検証 | DONE | N-ANDROID-EMU (medium_phone) | local/emu-m4-04/run.md PASS UI-01〜06 | APK 225M、adb -s install |
 | M4-05 | WindowsでFFIとexeを検証 | BLOCKED | N-WIN | Windows 11ホスト未選定 | O5: 利用先・担当の確保が再開条件 |
-| M4-06 | 全Webブラウザを検証 | DONE | W-CHROMIUM/W-FIREFOX/W-SAFARI/W-ANDROID + W-IOS部分 | Chromium root/subpath PASS、Firefox root/subpath PASS、Safari root/subpath PASS (実版26.6.2)、Emu Chrome PASS (verify-emu-chrome.mjs全自動 UI-01〜05+W-02)、Sim Safari UI-01/UI-02+W-02 PASS (UI-03〜05はcliclick mapping不安定で要再試行、スクリプトは全自動・証拠付き) | W-IOS tapsはopenurl+screenshot+OCR自動、tap座標 mappingが残課題。実機Chrome/Nativeはverify-android-device.mjsで全自動化済み、実機ロックのためBLOCKED (解除後再実行) |
+| M4-06 | 全Webブラウザを検証 | DONE | W-CHROMIUM/W-FIREFOX/W-SAFARI/W-ANDROID/W-IOS | Chromium root/subpath PASS、Firefox root/subpath PASS、Safari root/subpath PASS (実版26.6.2)、Emu Chrome PASS (verify-emu-chrome.mjs全自動 UI-01〜05+W-02)、Sim Safari PASS (verify-sim-safari.mjs全自動 UI-01〜05+W-02、window直取りマッピングで2回連続attempt=1) | 実機はverify-android-device.mjsでN-ANDROID-DEVICE PASS (OCR全自動)、iOS実機Webはverify-ios-device-web.mjsで参考PASS |
 | M5-01 | クリーン再現とSDK独立性 | IN_PROGRESS | R-01/R-02 | npm ci + doctor + test:api 136 + typecheck all再現確認済み (同一コピー)。別コピー・SDKなし環境は未実施 | 既存SDKは削除しない。別コピー手順はREADME再現順に準拠 |
 | M5-02 | CI workflowを準備 | IN_PROGRESS | | .github/workflows/poc.yml作成予定 | remote実行はNOT_RUN区別 |
 | M5-03 | 全記録を監査して採用判断 | IN_PROGRESS | R-03 | tracker/matrix更新中、M4/M5-01/M5-02後に集計 | 文書対応済みと実動作を区別 |

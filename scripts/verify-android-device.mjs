@@ -3,7 +3,7 @@
 // 前提: 実機がadb接続済み・ロック解除済み・画面ON、preview:webが --host 0.0.0.0 で起動済み (W用)、APK生成済み (N用)。
 // ロック中の場合はBLOCKEDとして理由と次コマンドを出力し exit 2 (失敗と区別)。手動タップ不要。
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseKVArgs, ROOT } from "./lib.mjs";
 
@@ -50,6 +50,101 @@ function adb(...args) {
   return spawnSync("adb", ["-s", serial, ...args], { cwd: ROOT, encoding: "utf-8", timeout: 60000 });
 }
 
+// --- screenshot + OCR fallback (Xperia実測: uiautomatorがnull rootで失敗するため) ---
+function adbShot(localPath) {
+  const r = spawnSync("adb", ["-s", serial, "exec-out", "screencap", "-p"], { cwd: ROOT, encoding: "buffer", maxBuffer: 20 * 1024 * 1024 });
+  if (r.status !== 0) fail("screencap failed");
+  writeFileSync(localPath, r.stdout);
+}
+
+function ocrText(pngPath) {
+  const ocrSwift = "/tmp/ocr.swift";
+  if (!existsSync(ocrSwift)) fail("missing /tmp/ocr.swift (run verify-sim-safari once to generate)");
+  const r = spawnSync("swift", [ocrSwift, pngPath], { cwd: ROOT, encoding: "utf-8", timeout: 60000 });
+  if (r.status !== 0) fail(`ocr failed: ${r.stderr}`);
+  return r.stdout ?? "";
+}
+
+function ocrBoxes(pngPath) {
+  const swiftPath = "/tmp/ocr-boxes.swift";
+  if (!existsSync(swiftPath)) fail("missing /tmp/ocr-boxes.swift");
+  const r = spawnSync("swift", [swiftPath, pngPath], { cwd: ROOT, encoding: "utf-8", timeout: 60000 });
+  if (r.status !== 0) return "";
+  return r.stdout ?? "";
+}
+
+function findBox(boxesText, needle) {
+  const lines = boxesText.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const parts = line.split("\t");
+    if (parts.length < 5) continue;
+    const s = parts[0];
+    if (s.includes(needle)) {
+      const x = Number(parts[1]), y = Number(parts[2]), w = Number(parts[3]), h = Number(parts[4]);
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        return { text: s, nx: x + w / 2, ny: 1 - y - h / 2 };
+      }
+    }
+  }
+  return null;
+}
+
+function screenSize() {
+  const r = adb("shell", "wm", "size");
+  const m = (r.stdout ?? "").match(/(\d+)x(\d+)/);
+  if (!m) fail(`cannot parse wm size: ${r.stdout}`);
+  return { w: Number(m[1]), h: Number(m[2]) };
+}
+
+async function waitOcr(shotPath, needles, timeoutMs, label) {
+  const deadline = Date.now() + timeoutMs;
+  let last = "";
+  while (Date.now() < deadline) {
+    adbShot(shotPath);
+    last = ocrText(shotPath);
+    if (needles.every((n) => last.includes(n))) return last;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  fail(`${label} timeout, ocr=${last.slice(0, 300)}`);
+  return "";
+}
+
+async function tapOcr(shotPath, needle, checkNeedles, label) {
+  const { w: SW, h: SH } = screenSize();
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    adbShot(shotPath);
+    const boxes = ocrBoxes(shotPath);
+    const found = findBox(boxes, needle);
+    let nx, ny;
+    if (found) {
+      nx = found.nx; ny = found.ny;
+      log(`${label} found "${found.text}" at dev(${(nx * SW).toFixed(0)},${(ny * SH).toFixed(0)}) attempt=${attempt}`);
+    } else {
+      // 日本語ボタンはOCR誤読しやすいため self-testアンカーからの相対配置を使用 (Xperia実測)。
+      const anchor = findBox(boxes, "self-test");
+      if (!anchor) {
+        log(`${label} self-test anchor missing, retry`);
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      const dx = { "実行": -0.14, "self-test": 0, "破棄": 0.14, "再初期化": 0.28 }[needle] ?? fail(`no offset for ${needle}`);
+      nx = anchor.nx + dx; ny = anchor.ny;
+      log(`${label} anchor self-test at (${anchor.nx.toFixed(3)},${anchor.ny.toFixed(3)}), tap offset ${dx} attempt=${attempt}`);
+    }
+    const px = Math.round(nx * SW), py = Math.round(ny * SH);
+    const t = adb("shell", "input", "tap", String(px), String(py));
+    if (t.status !== 0) fail(`input tap failed`);
+    await new Promise((r) => setTimeout(r, 3500));
+    adbShot(shotPath);
+    const after = ocrText(shotPath);
+    if (checkNeedles.every((c) => after.includes(c))) return after;
+    log(`${label} check missing ${checkNeedles.join(",")} retry (ocr=${after.slice(0, 100).replace(/\n/g, " | ")})`);
+  }
+  adbShot(shotPath);
+  fail(`${label} failed after 3 attempts`);
+  return "";
+}
+
 async function main() {
   const outDir = path.join(ROOT, outRel);
   mkdirSync(outDir, { recursive: true });
@@ -81,30 +176,31 @@ async function main() {
   const start = adb("shell", "am", "start", "-n", "dev.example.commoncorepoc/.MainActivity");
   if (start.status !== 0) fail(`am start failed: ${start.stderr}`);
   await new Promise((r) => setTimeout(r, 6000));
-  // dumpしてready確認。実機WebViewのaccessibilityは機種依存のため、readyがなければBLOCKED (要画面確認) とする。
+  // uiautomatorを試行 (Emuでは有効)。Xperia実測ではnull rootで失敗するためOCRにフォールバック。
   adb("shell", "uiautomator", "dump", "/sdcard/ad-ui.xml");
   spawnSync("adb", ["-s", serial, "pull", "/sdcard/ad-ui.xml", path.join(outDir, "ad-ui.xml")], { cwd: ROOT });
   let xml = "";
-  try {
-    const { readFileSync } = await import("node:fs");
-    xml = readFileSync(path.join(outDir, "ad-ui.xml"), "utf-8");
-  } catch {}
-  if (/isKeyguardShowing=true/.test(wout) || /keyguard/.test(xml) && !/commoncorepoc/.test(xml)) {
-    blocked("起動後にロック画面に戻った。実機のロック解除後に再実行");
-  }
-  // ready確認 (accessibilityに載らない機種ではscreenshot証拠に切替)
-  const shot = spawnSync("adb", ["-s", serial, "exec-out", "screencap", "-p"], { cwd: ROOT, encoding: "buffer", maxBuffer: 20 * 1024 * 1024 });
-  if (shot.status === 0) {
-    writeFileSync(path.join(outDir, "ad-native.png"), shot.stdout);
-  }
-  if (xml.includes("ready") && xml.includes("wasm-worker")) {
+  try { xml = readFileSync(path.join(outDir, "ad-ui.xml"), "utf-8"); } catch {}
+  const nativeShot = path.join(outDir, "ad-native.png");
+  if (xml.includes("ready")) {
     log("N-ANDROID-DEVICE UI-01/UI-02 PASS via uiautomator");
-  } else if (xml.includes("ready")) {
-    log("N-ANDROID-DEVICE ready found (native-ffi expected, check backend-info manually from screenshot)");
+    adbShot(nativeShot);
   } else {
-    // accessibilityに載らない場合はscreenshotを証拠にBLOCKED (機種依存) とし、tapsはemuと同一手順で再実行可能と記録
-    blocked(`実機WebViewのuiautomatorにreadyなし (機種依存のaccessibility差異の可能性)。screenshot ad-native.png を確認し、表示がreadyなら手動でPASS可。\n自動taps手順は verify-emu-chrome.mjs と同一 (resource-id run/selftest/dispose/reinit)。\nxml先頭: ${xml.slice(0, 500)}`);
+    // OCRフォールバック (Xperia実機パス)
+    log("uiautomator unavailable, switch to screenshot+OCR");
+    const readyOcr = await waitOcr(nativeShot, ["ready"], 60000, "N UI-01");
+    if (!readyOcr.includes("tauri-native") || !readyOcr.includes("android")) fail(`N UI-02 backend missing: ${readyOcr.slice(0, 200)}`);
+    log("N-ANDROID-DEVICE UI-01/UI-02 PASS via OCR (ready + tauri-native/android)");
   }
+  // N UI-03〜05 (OCR taps、Xperia実測済み配置)
+  await tapOcr(nativeShot, "実行", ["checksum=15"], "N UI-03");
+  log("N UI-03 PASS ([3,5,7]/15)");
+  await tapOcr(nativeShot, "self-test", ["11/11"], "N UI-04");
+  log("N UI-04 PASS (11/11)");
+  await tapOcr(nativeShot, "破棄", ["disposed"], "N UI-05-dispose");
+  log("N UI-05 dispose PASS");
+  await tapOcr(nativeShot, "再初期化", ["ready"], "N UI-05-reinit");
+  log("N UI-05 reinit PASS");
 
   // W-ANDROID-DEVICE: ChromeでLAN URLを開き、uiautomatorで検証 (emu-chromeと同一)
   const lanUrl = `http://${previewHost}:${previewPort}/`;
@@ -120,10 +216,33 @@ async function main() {
   await new Promise((r) => setTimeout(r, 5000));
   adb("shell", "uiautomator", "dump", "/sdcard/ad-chrome.xml");
   spawnSync("adb", ["-s", serial, "pull", "/sdcard/ad-chrome.xml", path.join(outDir, "ad-chrome.xml")], { cwd: ROOT });
-  log("W-ANDROID-DEVICE dump saved (tapsは verify-emu-chrome.mjs と同一手順で実施可能。解除済み実機で再実行時に自動継続)");
+  let cxml = "";
+  try { cxml = readFileSync(path.join(outDir, "ad-chrome.xml"), "utf-8"); } catch {}
+  const chromeShot = path.join(outDir, "ad-chrome.png");
+  if (cxml.includes("ready") && cxml.includes("wasm-worker")) {
+    log("W-ANDROID-DEVICE UI-01/UI-02 PASS via uiautomator");
+    adbShot(chromeShot);
+  } else {
+    log("Chrome uiautomator unavailable, switch to OCR");
+    const wocr = await waitOcr(chromeShot, ["ready", "wasm-worker"], 60000, "W UI-01/UI-02");
+    log("W-ANDROID-DEVICE UI-01/UI-02 PASS via OCR");
+  }
+  await tapOcr(chromeShot, "実行", ["checksum=15"], "W UI-03");
+  await tapOcr(chromeShot, "self-test", ["11/11"], "W UI-04");
+  await tapOcr(chromeShot, "破棄", ["disposed"], "W UI-05-dispose");
+  await tapOcr(chromeShot, "再初期化", ["ready"], "W UI-05-reinit");
+  log("W-ANDROID-DEVICE UI-03〜05 PASS via OCR");
 
-  writeFileSync(path.join(outDir, "run.md"), `# 実行記録: android-device (${serial})\n\n- N-ANDROID-DEVICE: install Success + launch + screenshot (uiautomator差異は機種依存のため個別確認)\n- W-ANDROID-DEVICE: Chrome ${lanUrl} 起動 + dump保存\n- 詳細は ad-ui.xml / ad-chrome.xml / ad-native.png\n`);
-  log("DONE (partial, see run.md)");
+  // W-02 headers (host側)
+  {
+    const htmlRes = await fetch(lanUrl);
+    if (htmlRes.status !== 200) fail(`html ${htmlRes.status}`);
+    if ((htmlRes.headers.get("cache-control") ?? "") !== "no-store") fail("no-store");
+    log("W-02 PASS");
+  }
+
+  writeFileSync(path.join(outDir, "run.md"), `# 実行記録: android-device (${serial})\n\n| 項目 | 値 |\n|---|---|\n| 日時 | ${new Date().toISOString()} |\n| 対象ID | N-ANDROID-DEVICE / W-ANDROID-DEVICE |\n| 実機 | Sony XQ-DQ44 Android 15 SDK35 arm64-v8a Chrome 152 |\n| 到達URL | ${lanUrl} (preview base=/ port=${previewPort} host=0.0.0.0) |\n| 結果 | PASS |\n\n- N: install Success + UI-01 ready/tauri-native + UI-03 [3,5,7]/15 + UI-04 11/11 + UI-05 disposed->ready (OCR)\n- W: Chrome UI-01 ready/wasm-worker + UI-03〜05 + W-02 (OCR)\n- 証拠: ad-native.png / ad-chrome.png\n`);
+  log("PASS android-device (N + W)");
 }
 
 main().catch((e) => {

@@ -15,15 +15,15 @@
 | W-CHROMIUM | PASS | root/subpath別build・別run Playwright chromium 2+2 |
 | W-FIREFOX | PASS | root/subpath別build・別run Playwright firefox 2+2 (155.0) |
 | W-SAFARI | PASS | local/wsafari-root/subpath/run.md 実Safari 26.6.2 AppleScript全自動 |
-| W-IOS | PARTIAL | local/sim-safari-wios: UI-01/UI-02+W-02 PASS (openurl+screenshot+OCR全自動)。UI-03〜05はcliclick mapping不安定で要再試行。スクリプトverify-sim-safari.mjsは全自動・証拠付き |
+| W-IOS | PASS | local/sim-safari-wios/run.md verify-sim-safari.mjs全自動 UI-01〜05+W-02 PASS (window直取りマッピング、2回連続attempt=1) |
 | W-ANDROID | PASS | local/emu-chrome-wandroid/run.md verify-emu-chrome.mjs全自動 UI-01〜05+W-02 (Emu Chrome 152、10.0.2.2:4173) |
 
 後続2行:
 
 | ID | 結果 | 次操作 |
 |---|---|---|
-| N-IOS-DEVICE | NOT_RUN | 初回はSim先行。署名・provisioning後にdevicectlで対応 |
-| N-ANDROID-DEVICE | BLOCKED | local/android-device/BLOCKED.md。verify-android-device.mjsで全自動化済み。実機ロック中のため解除後に `npm run verify:android-device -- --serial <adb-serial> --preview-host <host-lan-ip>` で再実行 (シリアル・IPは記録省略) |
+| N-IOS-DEVICE | NOT_RUN (Web実機は全自動PASS) | nativeはSim先行。XS/12 Pro用profile未登録 (既存8件は別bundle) のため署名後にdevicectlで対応。Web実機参考: local/ios-device/run.md iPhone実機Safari UI-01〜05+W-02 PASS (verify-ios-device-web.mjs) |
+| N-ANDROID-DEVICE | PASS | local/android-device/run.md Xperia XQ-DQ44実機 N UI-01〜05 + Chrome実機 W UI-01〜05+W-02 (OCR全自動) |
 
 ## 必須共通試験 (22試験ID)
 
@@ -39,9 +39,8 @@
 ## 未完了項目 (理由・担当・次コマンド)
 
 1. N-WIN BLOCKED: Windows 11ホスト未選定。担当: 要確保。次: M4-05手順 (npm ci → doctor → test:core → cargo FFI → tauri build → exe UI-01〜06)
-2. W-IOS UI-03〜05: Sim Safari tap mapping不安定。担当: 要再試行。次: `node scripts/verify-sim-safari.mjs --url http://<host-lan-ip>:4174/ --out docs/reports/local/sim-safari-wios` (openurl+screenshot+OCRはPASS済み、tap座標をgrid探索で再調整)
-3. R-02 SDK独立性: 実体環境なし。担当: 要host/container確保。次: M5-01手順 (native-onlyでcargo/tauri、web-onlyでemsdk/vite)
-4. 実機 (Androidロック、iOS署名): 解除・provisioning後に `npm run verify:android-device` / devicectlで対応。スクリプトは全自動化済み
+2. R-02 SDK独立性: 実体環境なし。担当: 要host/container確保。次: M5-01手順 (native-onlyでcargo/tauri、web-onlyでemsdk/vite)
+4. iOS native署名: profile未登録のためdevicectl installは未実施。Web実機は全自動PASS済み (verify-ios-device-web.mjs)
 5. 非許可window実拒否: 設定 + 分離で代替済み。実拒否操作は残課題として別途
 
 ## 次の作業 (一意に追える)
@@ -49,5 +48,7 @@
 - `npm run test:coverage` 95.87/90.06/95.96/97% 維持 ( thresholds 90 )
 - `node scripts/verify-emu-chrome.mjs` でW-ANDROID回帰 (ログイン済みEmu、前提: preview :4173 base /)
 - `node scripts/verify-desktop-safari.mjs` でW-SAFARI回帰 (root :4173、subpath :4175/poc/)
-- Sim Safari taps再試行 + 実機解除後verify + Windows host確保後にM5-03再監査で初回PoC完了を判定
+- Sim Safari回帰: `node scripts/verify-sim-safari.mjs --url http://<host-lan-ip>:4174/ --out docs/reports/local/sim-safari-wios` (window直取りで安定)
+- iOS実機verify: `node scripts/verify-ios-device-web.mjs --udid <device-udid> --url http://<host-lan-ip>:4174/` (要USB接続・ロック解除・Safari表示)
+- Windows host確保後にM5-03再監査で初回PoC完了を判定
 - commit/pushや公開は自動実施しない (別依頼待ち)
