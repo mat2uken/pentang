@@ -1,0 +1,11 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": ["vite/client"],
+    "paths": {
+      "@backend": ["../packages/backends/browser/index.ts"]
+    }
+  },
+  "include": ["../apps/poc-demo/main.ts", "../apps/poc-demo/ui.ts", "../apps/poc-demo/self-test/**/*.ts", "../packages/api/**/*.ts", "../packages/backends/browser/**/*.ts", "../packages/backends/request-state.ts", "../packages/backends/pipeline.ts", "../index.html", "../vite.config.ts", "../docs/harness/harness.ts"]
+}

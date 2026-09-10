@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // build-wasm.mjs — 同一C++→mjs/wasm。生成先は web-public/wasm/。
-// research/docs/05-build-run.md の引数を配列で組み立てる。shell貼り付け用ではない。
+// docs/plan/05-build-run.md の引数を配列で組み立てる。shell貼り付け用ではない。
 // emsdkの有効化済み環境を呼び出し側で渡す (source ~/emsdk/emsdk_env.sh)。
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -44,7 +44,7 @@ function main() {
     process.exit(1);
   }
 
-  // docs/05 (research/docs/05-build-run.md) の引数
+  // docs/05 (docs/plan/05-build-run.md) の引数
   const args = [
     src,
     "-I",

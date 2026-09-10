@@ -22,7 +22,7 @@ src-tauri/gen/apple/DerivedData/
 *.jks
 
 # ローカル記録 (個人path/serial/生ログ)
-research/reports/local/
+docs/reports/local/
 
 # OS / エディタ
 .DS_Store

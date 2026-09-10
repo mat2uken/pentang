@@ -30,7 +30,7 @@
 - PASS: C-01、C-02、C-03、C-04、A-01、A-02、A-03、A-04、N-01、W-01、W-02、W-03、L-01、L-02、L-03、L-04、P-01、S-01、S-02 (19件)。詳細はverification-matrix.md
 - IN_PROGRESS: R-01 (別コピーunit再現PASS、対象build再現残り)、R-02 (実体環境なし、PATH遮断は補助)、R-03 (本レポートで監査中)
 
-## 指摘対応 (../docs/11-review-traceability 12件)
+## 指摘対応 (../plan/11-review-traceability 12件)
 
 - 文書対応済みを実動作確認済みへ自動変更しない。本レポートのPASSはすべて実測 (unit 136 + e2e + 実機UI + header fetch + screenshot/xml) に基づく。
 - test用export (worker __setImporter/__attach/__reset、browser buildUrls、request-state整理) は製品動作変更なし。typecheck all + 136 PASS + Web e2e再PASSで回帰確認。
@@ -39,7 +39,7 @@
 ## 未完了項目 (理由・担当・次コマンド)
 
 1. N-WIN BLOCKED: Windows 11ホスト未選定。担当: 要確保。次: M4-05手順 (npm ci → doctor → test:core → cargo FFI → tauri build → exe UI-01〜06)
-2. W-IOS UI-03〜05: Sim Safari tap mapping不安定。担当: 要再試行。次: `node scripts/verify-sim-safari.mjs --url http://<host-lan-ip>:4174/ --out research/reports/local/sim-safari-wios` (openurl+screenshot+OCRはPASS済み、tap座標をgrid探索で再調整)
+2. W-IOS UI-03〜05: Sim Safari tap mapping不安定。担当: 要再試行。次: `node scripts/verify-sim-safari.mjs --url http://<host-lan-ip>:4174/ --out docs/reports/local/sim-safari-wios` (openurl+screenshot+OCRはPASS済み、tap座標をgrid探索で再調整)
 3. R-02 SDK独立性: 実体環境なし。担当: 要host/container確保。次: M5-01手順 (native-onlyでcargo/tauri、web-onlyでemsdk/vite)
 4. 実機 (Androidロック、iOS署名): 解除・provisioning後に `npm run verify:android-device` / devicectlで対応。スクリプトは全自動化済み
 5. 非許可window実拒否: 設定 + 分離で代替済み。実拒否操作は残課題として別途

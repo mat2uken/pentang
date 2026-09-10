@@ -18,7 +18,7 @@ export default defineConfig({
         "packages/**/*.d.ts",
         "apps/**/*.d.ts",
         // main.tsは起動結線のみでE2E/実機で検証するため unit 計測から除外する。
-        "apps/demo/main.ts",
+        "apps/poc-demo/main.ts",
       ],
       thresholds: {
         statements: 90,

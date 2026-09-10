@@ -8,7 +8,7 @@ import path from "node:path";
 import { parseKVArgs, ROOT } from "./lib.mjs";
 
 function usage() {
-  return `usage: node scripts/verify-sim-safari.mjs --url http://<host-lan-ip>:4174/ [--out research/reports/local/sim-safari-wios]\n  example: node scripts/verify-sim-safari.mjs --url http://192.168.99.239:4174/`;
+  return `usage: node scripts/verify-sim-safari.mjs --url http://<host-lan-ip>:4174/ [--out docs/reports/local/sim-safari-wios]\n  example: node scripts/verify-sim-safari.mjs --url http://192.168.99.239:4174/`;
 }
 
 const { kv } = parseKVArgs(process.argv.slice(2));
@@ -23,7 +23,7 @@ if (typeof simUrl !== "string" || simUrl === "" || !simUrl.startsWith("http")) {
   console.error(`--url http://<host-lan-ip>:4174/ is required (Sim cannot reach 127.0.0.1; use host LAN IP).\n${usage()}`);
   process.exit(2);
 }
-const outRel = kv["out"] ?? "research/reports/local/sim-safari-wios";
+const outRel = kv["out"] ?? "docs/reports/local/sim-safari-wios";
 
 function log(m) {
   console.log(`[verify-sim-safari] ${m}`);

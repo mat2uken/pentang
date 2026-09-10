@@ -18,7 +18,7 @@ vi.mock("../../packages/api/fixtures/golden-vectors.json", () => ({
   },
 }));
 
-import { runSelfTest } from "../../apps/demo/self-test/runner";
+import { runSelfTest } from "../../apps/poc-demo/self-test/runner";
 import { validateTransformRequest } from "../../packages/api/validation";
 
 describe("runner missing/partial fixture", () => {

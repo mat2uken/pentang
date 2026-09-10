@@ -46,4 +46,4 @@
 | R-02 | SDK独立性 | IN_PROGRESS | nativeはemsdkなしでcargo/test可 (要実測記録)、WebはRust/NDK/Xcodeなしでbuild可 (要実測)。PATH遮断は補助 | 実体環境がなければ不足を記録 (M5-01) |
 | R-03 | 記録整合 | IN_PROGRESS | tracker/matrix更新中 | M5-03で同一採用版への紐付け・未実行区別を監査 |
 
-実行時は試験ID・対象・条件ごとに行を分ける。PASS / FAIL / BLOCKED / NOT_RUNの定義は [検証計画](../docs/06-verification.md) を参照。
+実行時は試験ID・対象・条件ごとに行を分ける。PASS / FAIL / BLOCKED / NOT_RUNの定義は [検証計画](../plan/06-verification.md) を参照。

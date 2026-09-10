@@ -16,7 +16,7 @@ PoC の検証対象であり、再利用する部分。UI・配信・署名を�
 ## 依存方向
 
 - `core` ← `ffi` / `core` → (Emscripten) → WASM ← `backends/browser`
-- `api` ← `backends/*` ← アプリ (`apps/demo`、`src-tauri` の commands)
+- `api` ← `backends/*` ← アプリ (`apps/poc-demo`、`src-tauri` の commands)
 - `browser` と `tauri` は互いを import しない。共有は `pipeline.ts` / `request-state.ts` のみ。
 
 ## 試験・ビルド
@@ -24,4 +24,4 @@ PoC の検証対象であり、再利用する部分。UI・配信・署名を�
 - C++ 単体: `npm run test:core`
 - Rust FFI: `cargo test -p poc-core-ffi --locked`
 - TS 単体 (`tests/api/`、契約 fixture 準拠): `npm run test:api`
-- 仕様の由来: `research/docs/04-contracts.md`。凍結した原文は `research/docs/reference/poc-v1/` (実行コードから import しない)。
+- 仕様の由来: `docs/plan/04-contracts.md`。凍結した原文は `docs/plan/reference/poc-v1/` (実行コードから import しない)。

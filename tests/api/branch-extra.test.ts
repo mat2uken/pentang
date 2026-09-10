@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildUrls, createBrowserBackend, createBrowserBackendForTest } from "../../packages/backends/browser/index";
 import { WORKER_PROTOCOL_VERSION } from "../../packages/backends/browser/worker-protocol";
 import { RequestState } from "../../packages/backends/request-state";
-import { runSelfTest } from "../../apps/demo/self-test/runner";
+import { runSelfTest } from "../../apps/poc-demo/self-test/runner";
 import { makeFakeWorker as makeWorker } from "./fake-worker";
 
 describe("branch extra: buildUrls/factory", () => {

@@ -34,4 +34,4 @@
 | M5-02 | CI workflowを準備 | NOT_STARTED | | | |
 | M5-03 | 全記録を監査して採用判断 | NOT_STARTED | | | |
 
-工程順は [実装工程](../03-implementation-plan.md) に従う。reportsへコピー後はリンクを `../docs/03-implementation-plan.md` に直す。
+工程順は [実装工程](../03-implementation-plan.md) に従う。reportsへコピー後はリンクを `../plan/03-implementation-plan.md` に直す。

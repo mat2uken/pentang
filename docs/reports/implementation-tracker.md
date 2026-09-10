@@ -34,4 +34,4 @@
 | M5-02 | CI workflowを準備 | IN_PROGRESS | | .github/workflows/poc.yml作成予定 | remote実行はNOT_RUN区別 |
 | M5-03 | 全記録を監査して採用判断 | IN_PROGRESS | R-03 | tracker/matrix更新中、M4/M5-01/M5-02後に集計 | 文書対応済みと実動作を区別 |
 
-工程順は [実装工程](../docs/03-implementation-plan.md) に従う。
+工程順は [実装工程](../plan/03-implementation-plan.md) に従う。

@@ -6,9 +6,10 @@
 
 - `packages/` — ライブラリ (ビルド・利用する部分)。詳細は [packages/README.md](packages/README.md)
   - `core/` C++ 共通コア / `ffi/` Rust FFI 共通 / `api/` TS 共通 API / `backends/` 共有 + プラットフォーム別 (browser / tauri)
-- `apps/demo/` + `src-tauri/` + `index.html` — ライブラリ利用側の PoC デモ (UI・ネイティブシェル)。詳細は [apps/README.md](apps/README.md)
-- `research/` — 調査・検証の集約 (計画文書・検証表・実行記録・E2E)。詳細は [research/README.md](research/README.md)
+- `apps/poc-demo/` + `src-tauri/` + `index.html` — デモアプリ (ライブラリ利用側の PoC デモ: UI・ネイティブシェル)。製品コードではない。詳細は [apps/README.md](apps/README.md)
+- `docs/` — ドキュメント集約 (計画・仕様・調査結果・検証記録・E2E)。詳細は [docs/README.md](docs/README.md)
 - `scripts/` / `tests/api/` — ビルド・検証ツールとライブラリ単体試験
+- `tsconfig/` — 用途別 TypeScript 設定 (束ねはルート `tsconfig.json`)。詳細は [tsconfig/README.md](tsconfig/README.md)
 
 ## 使い方
 
@@ -25,4 +26,4 @@
 
 ## 状態
 
-検証の最新状況は [research/README.md](research/README.md) と [research/reports/verification-matrix.md](research/reports/verification-matrix.md) を参照。
+検証の最新状況は [docs/README.md](docs/README.md) と [docs/reports/verification-matrix.md](docs/reports/verification-matrix.md) を参照。

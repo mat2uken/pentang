@@ -3,7 +3,7 @@ import process from "node:process";
 
 const host = process.env.TAURI_DEV_HOST;
 
-// mode別に backend alias / outDir / publicDir を分ける (research/docs/02-architecture.md)。
+// mode別に backend alias / outDir / publicDir を分ける (docs/plan/02-architecture.md)。
 // M0の空画面はBackendをimportしない。alias解決はM1/M2接続時に使う。
 export default defineConfig(({ mode }) => {
   const isTauri = mode === "tauri";

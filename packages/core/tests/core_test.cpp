@@ -1,5 +1,5 @@
 // C単体試験 (C-02/C-03)。assert()に依存せず、失敗時は非0終了する。
-// 対象ケースは research/docs/12-test-case-catalog.md のcore-01〜core-10と共通期待値。
+// 対象ケースは docs/plan/12-test-case-catalog.md のcore-01〜core-10と共通期待値。
 #include <cstdint>
 #include <cstdio>
 #include <cstring>

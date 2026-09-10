@@ -1,0 +1,13 @@
+{
+  // 用途別 tsconfig の束ね用。単一統合は lib/types/@backend が
+  // web/native/worker/node で競合するため、tsconfig/ 配下に分離する。
+  // 各プロジェクトの説明は tsconfig/README.md を参照。
+  "files": [],
+  "references": [
+    { "path": "./tsconfig/native.json" },
+    { "path": "./tsconfig/web.json" },
+    { "path": "./tsconfig/worker.json" },
+    { "path": "./tsconfig/node.json" },
+    { "path": "./tsconfig/tests.json" }
+  ]
+}

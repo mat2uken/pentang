@@ -29,17 +29,17 @@ function tsc(project) {
 
 let code = 0;
 if (scope === "native") {
-  code = tsc("tsconfig.native.json");
-  if (code === 0) code = tsc("tsconfig.node.json");
+  code = tsc("tsconfig/native.json");
+  if (code === 0) code = tsc("tsconfig/node.json");
 } else if (scope === "web") {
-  code = tsc("tsconfig.web.json");
-  if (code === 0) code = tsc("tsconfig.worker.json");
-  if (code === 0) code = tsc("tsconfig.node.json");
+  code = tsc("tsconfig/web.json");
+  if (code === 0) code = tsc("tsconfig/worker.json");
+  if (code === 0) code = tsc("tsconfig/node.json");
 } else {
-  code = tsc("tsconfig.native.json");
-  if (code === 0) code = tsc("tsconfig.web.json");
-  if (code === 0) code = tsc("tsconfig.worker.json");
-  if (code === 0) code = tsc("tsconfig.node.json");
-  if (code === 0) code = tsc("tsconfig.tests.json");
+  code = tsc("tsconfig/native.json");
+  if (code === 0) code = tsc("tsconfig/web.json");
+  if (code === 0) code = tsc("tsconfig/worker.json");
+  if (code === 0) code = tsc("tsconfig/node.json");
+  if (code === 0) code = tsc("tsconfig/tests.json");
 }
 process.exit(code);

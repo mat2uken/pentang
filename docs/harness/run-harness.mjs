@@ -1,6 +1,6 @@
 import { chromium } from "@playwright/test";
 
-const url = process.argv[2] ?? "http://127.0.0.1:5173/research/web/worker-harness.html";
+const url = process.argv[2] ?? "http://127.0.0.1:5173/docs/harness/worker-harness.html";
 const browser = await chromium.launch();
 const page = await browser.newPage();
 page.on("console", (m) => console.log(`[console] ${m.text()}`));

@@ -33,4 +33,4 @@
 | S-01〜S-02 | 権限・CSP | NOT_RUN | | |
 | R-01〜R-03 | 再現性・記録 | NOT_RUN | | |
 
-実行時は試験ID・対象・条件ごとに行を分ける。PASS / FAIL / BLOCKED / NOT_RUNの定義は [検証計画](../06-verification.md) を参照。コピー後はこのリンクを `../docs/06-verification.md` に変更する。
+実行時は試験ID・対象・条件ごとに行を分ける。PASS / FAIL / BLOCKED / NOT_RUNの定義は [検証計画](../06-verification.md) を参照。コピー後はこのリンクを `../plan/06-verification.md` に変更する。

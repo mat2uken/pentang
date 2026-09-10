@@ -6,7 +6,7 @@ vi.mock("@backend", () => ({
 }));
 
 import { createBackend } from "@backend";
-import { boot } from "../../apps/demo/ui";
+import { boot } from "../../apps/poc-demo/ui";
 import { validateTransformRequest } from "../../packages/api/validation";
 
 const mockedCreateBackend = createBackend as unknown as ReturnType<typeof vi.fn>;

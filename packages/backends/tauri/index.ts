@@ -195,7 +195,7 @@ export async function createTauriBackend(): Promise<ApplicationApi> {
   return backend;
 }
 
-// composition root用の統一名 (web/nativeで同じapps/demo/main.ts/ui.tsを使う)
+// composition root用の統一名 (web/nativeで同じapps/poc-demo/main.ts/ui.tsを使う)
 export const createBackend = createTauriBackend;
 
 // test用のinvoke/clock注入は内部関数だけに設ける

@@ -1,0 +1,11 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": [],
+    "paths": {
+      "@backend": ["../packages/backends/tauri/index.ts"]
+    }
+  },
+  "include": ["../apps/poc-demo/main.ts", "../apps/poc-demo/ui.ts", "../apps/poc-demo/self-test/**/*.ts", "../packages/api/**/*.ts", "../packages/backends/tauri/**/*.ts", "../packages/backends/request-state.ts", "../packages/backends/pipeline.ts", "../index.html", "../vite.config.ts"]
+}
