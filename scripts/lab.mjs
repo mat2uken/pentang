@@ -18,6 +18,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { row } from "./lib.mjs";
 import { fileURLToPath } from "node:url";
 import {
   ROOT,
@@ -131,10 +132,6 @@ function expectedNodeVersion() {
   } catch {
     return "";
   }
-}
-
-function row(item, status, expected, actual, remedy = "") {
-  return { item, status, expected, actual, remedy };
 }
 
 function inferAndroidSdk(adbPath) {

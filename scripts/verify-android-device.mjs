@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseKVArgs, ROOT } from "./lib.mjs";
+import { findBox, hasExpectedResult } from "./verify-ocr.mjs";
 
 function usage() {
   return `usage: node scripts/verify-android-device.mjs --serial <adb-serial> --preview-host <host-lan-ip> [--preview-port 4174 --apk <path> --out docs/reports/local/android-device]\n  example: node scripts/verify-android-device.mjs --serial emulator-5554 --preview-host 192.168.99.239 --preview-port 4174`;
@@ -71,30 +72,6 @@ function ocrBoxes(pngPath) {
   const r = spawnSync("swift", [swiftPath, pngPath], { cwd: ROOT, encoding: "utf-8", timeout: 60000 });
   if (r.status !== 0) return "";
   return r.stdout ?? "";
-}
-
-function findBox(boxesText, needle) {
-  const lines = boxesText.split("\n").map((l) => l.trim()).filter(Boolean);
-  for (const line of lines) {
-    const parts = line.split("\t");
-    if (parts.length < 5) continue;
-    const s = parts[0];
-    if (s.includes(needle)) {
-      const x = Number(parts[1]), y = Number(parts[2]), w = Number(parts[3]), h = Number(parts[4]);
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        return { text: s, nx: x + w / 2, ny: 1 - y - h / 2 };
-      }
-    }
-  }
-  return null;
-}
-
-function hasExpectedResult(text) {
-  const compact = String(text ?? "")
-    .normalize("NFKC")
-    .replace(/\s+/g, "")
-    .replace(/[，、]/g, ",");
-  return /checksum=15(?:$|[^\d])/.test(compact) && /(?:^|[^\d])3,5,7(?:$|[^\d])/.test(compact);
 }
 
 function screenSize() {

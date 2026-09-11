@@ -2,11 +2,10 @@
 // build:web — 型検査→WASM生成→Vite web buildを直列に行う。
 // --base は / または末尾slash付き絶対pathのみ。全工程成功後にその出力を試験対象とする。
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseKVArgs } from "./lib.mjs";
+import { parseKVArgs, sha256File } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -35,12 +34,6 @@ function run(cmd, args) {
   console.log(`$ ${cmd} ${args.join(" ")}`);
   const res = spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit" });
   return res.status ?? 1;
-}
-
-function sha256File(p) {
-  const h = createHash("sha256");
-  h.update(readFileSync(p));
-  return h.digest("hex");
 }
 
 function listFiles(dir, prefix = "") {

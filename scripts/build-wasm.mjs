@@ -3,19 +3,13 @@
 // docs/plan/05-build-run.md の引数を配列で組み立てる。shell貼り付け用ではない。
 // emsdkの有効化済み環境を呼び出し側で渡す (source ~/emsdk/emsdk_env.sh)。
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sha256File } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
-function sha256File(p) {
-  const h = createHash("sha256");
-  h.update(readFileSync(p));
-  return h.digest("hex");
-}
 
 function whichEmxx() {
   const res = spawnSync("sh", ["-c", "command -v em++"], { encoding: "utf-8" });

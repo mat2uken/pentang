@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseKVArgs, ROOT } from "./lib.mjs";
+import { findBox, hasExpectedResult } from "./verify-ocr.mjs";
 
 function usage() {
   return `usage: node scripts/verify-sim-safari.mjs --url http://<host-lan-ip>:4174/ [--out docs/reports/local/sim-safari-wios]\n  example: node scripts/verify-sim-safari.mjs --url http://192.168.99.239:4174/`;
@@ -119,34 +120,6 @@ function tapSimNormalized(nx, ny) {
   log(`tap sim(${nx.toFixed(3)},${ny.toFixed(3)}) -> window(${px},${py}) frame=${frame.x},${frame.y},${frame.w},${frame.h}`);
   const r = run("cliclick", [`c:${px},${py}`]);
   if (r.status !== 0) fail(`cliclick failed: ${r.stderr}`);
-}
-
-function findBox(boxesText, needle) {
-  // boxesText: "string\tx\ty\tw\th" per line, Vision origin bottom-left
-  const lines = boxesText.split("\n").map((l) => l.trim()).filter(Boolean);
-  for (const line of lines) {
-    const parts = line.split("\t");
-    if (parts.length < 5) continue;
-    const s = parts[0];
-    if (s.includes(needle)) {
-      const x = Number(parts[1]), y = Number(parts[2]), w = Number(parts[3]), h = Number(parts[4]);
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        // Vision bottom-left -> Sim top-left normalized: nx = x + w/2, ny = (1 - y - h/2)
-        const nx = x + w / 2;
-        const ny = 1 - y - h / 2;
-        return { text: s, nx, ny };
-      }
-    }
-  }
-  return null;
-}
-
-function hasExpectedResult(text) {
-  const compact = String(text ?? "")
-    .normalize("NFKC")
-    .replace(/\s+/g, "")
-    .replace(/[，、]/g, ",");
-  return /checksum=15(?:$|[^\d])/.test(compact) && /(?:^|[^\d])3,5,7(?:$|[^\d])/.test(compact);
 }
 
 async function main() {

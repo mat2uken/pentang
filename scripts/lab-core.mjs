@@ -56,12 +56,11 @@ export function sha256Bytes(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+// ファイルhashの実体は scripts/lib.mjs に一本化。import表面は維持する。
+export { sha256File } from "./lib.mjs";
+
 export function sha256Text(text) {
   return sha256Bytes(Buffer.from(String(text), "utf8"));
-}
-
-export function sha256File(filePath) {
-  return sha256Bytes(readFileSync(filePath));
 }
 
 function walkFiles(root, relative = "") {

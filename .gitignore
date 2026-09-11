@@ -18,6 +18,9 @@ coverage/
 src-tauri/gen/android/local.properties
 src-tauri/gen/apple/**/*.xcworkspace/xcuserdata/
 src-tauri/gen/apple/DerivedData/
+# Xcode が再生成する派生ログと、改名前の残骸project (pbxprojなし・機能なし)
+src-tauri/gen/apple/.derived-data-log-*
+src-tauri/gen/apple/poc-app.xcodeproj/
 *.keystore
 *.jks
 

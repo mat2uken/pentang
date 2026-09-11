@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -45,6 +46,18 @@ export function loadJson(rel) {
   } catch (e) {
     return { found: true, path: p, parseError: String(e) };
   }
+}
+
+/** 診断行の共通形 {item,status,expected,actual,remedy}。 */
+export function row(item, status, expected, actual, remedy = "") {
+  return { item, status, expected, actual, remedy };
+}
+
+/** ファイルの sha256 hex。build provenance 記録の共通 primitive。 */
+export function sha256File(p) {
+  const h = createHash("sha256");
+  h.update(readFileSync(p));
+  return h.digest("hex");
 }
 
 export function parseKVArgs(argv) {

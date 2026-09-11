@@ -4,17 +4,13 @@
 // 読み取り専用: 自動install、SDK変更、実機起動、署名変更を行わない。
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { ROOT, runCmd, which, cmdVersion, loadJson, parseKVArgs } from "./lib.mjs";
+import { ROOT, row, runCmd, which, cmdVersion, loadJson, parseKVArgs } from "./lib.mjs";
 
 const VALID_TARGETS = ["web", "native", "android", "ios"];
 const VALID_PHASES = ["tools", "build", "run"];
 
 function usage() {
   return `usage: npm run doctor -- --target <web|native|android|ios> [--phase <tools|build|run>] [--device-class simulator|device] [--arch arm64|x86_64] [--artifact <path>] [--url <http(s) url>] [--device <UDID|serial>]`;
-}
-
-function row(name, status, expected, actual, remedy) {
-  return { item: name, status, expected, actual, remedy };
 }
 
 function main() {
