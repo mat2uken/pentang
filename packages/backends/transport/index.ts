@@ -4,10 +4,8 @@
  *   OS 別実装を選ぶ。Tauri が WebView を抽象化している現状では OS 固有 hook が
  *   なければ Tauri内データプレーン (`tauriDataPlane` 指定) になる。
  * - `TauriInvokeTransport`: 上位からは純バイナリに見せ、Tauri 境界では既存の
- *   `poc_get_info` / `poc_transform` JSON invoke へ翻訳する基準経路。
- * - `InvokeB64Transport` (`transport-b64.ts`): `poc_transform_bin` への
- *   base64 batch。JSON数値parseを避ける。
- * - `SchemeBinaryTransport` (`transport-scheme.ts`): `pocbin:` schemeへの
+ *   `core_get_info` / `core_transform` JSON invoke へ翻訳する基準経路・単一fallback。
+ * - `SchemeBinaryTransport` (`transport-scheme.ts`): `corebin:` schemeへの
  *   raw binary fetch。テキスト変換なしの最速経路。
  * - `PortTransport`: バイナリ対応 peer (将来の Worker 等) との transferable
  *   送受信。要求は直列化し、応答は順序対応で解決する。
@@ -33,37 +31,33 @@ import {
 } from "./bridge-interface";
 import { FrameBatcher } from "../../api/wire-ring";
 import { AndroidPortTransport } from "./transport-android";
-import { InvokeB64Transport } from "./transport-b64";
+import { getCorebinPort } from "./bridge-interface";
 import { LinuxDirectTransport } from "./transport-linux";
 import { WebKitIpcTransport } from "./transport-apple";
-import { SchemeBinaryTransport, probeSchemeEndpoint, type FetchFn, type SchemeHttpMethod } from "./transport-scheme";
+import { SchemeBinaryTransport, probeSchemeUrl, type FetchFn } from "./transport-scheme";
 import { WebView2SharedTransport } from "./transport-win";
 
-export { InvokeB64Transport } from "./transport-b64";
-export { SchemeBinaryTransport, probeSchemeBinary, probeSchemeEndpoint, probeSchemeUrl } from "./transport-scheme";
+export { SchemeBinaryTransport, probeSchemeBinary, probeSchemeUrl } from "./transport-scheme";
 export type { FetchFn };
 
 /** 計測済みの推奨順。
- * - POST到達 (desktop/iOS想定): scheme-binary (N=4096中央値0.4ms)。
- * - GET迂回のみ (Android相当): 単発はinvoke-b64が最速のためinvokeがあれば
- *   b64を選ぶ (emulator実測 N=3〜4096でb64がjson/scheme-GETに全勝)。
- *   batch利用者はSchemeBinaryTransportを明示構築する (32件束ねで約10倍)。
- * - 到達不能: invokeがあればb64、なければjson。
+ * - 生Port公開 (Android): port-message (真バイナリ・最速)。
+ * - POST到達 (desktop/iOS): scheme-binary。
+ * - 到達不能: json (低速だが確実な単一fallback)。
  */
 export async function createFastTauriTransport(deps: BridgeDeps = {}): Promise<BridgeTransport> {
   if (deps.tauriDataPlane !== undefined) return createTauriDataTransport(deps);
+  const port = getCorebinPort();
+  if (port) return new AndroidPortTransport({ port, fallback: deps.invoke !== undefined ? new TauriInvokeTransport({ invoke: deps.invoke }) : undefined });
   if (deps.transformUrl !== undefined) {
-    return new SchemeBinaryTransport({ fetchFn: deps.fetchFn, transformUrl: deps.transformUrl, method: deps.schemeMethod });
+    return new SchemeBinaryTransport({ fetchFn: deps.fetchFn, transformUrl: deps.transformUrl });
   }
-  const ep = await probeSchemeEndpoint(deps.fetchFn);
-  if (ep !== null) {
-    if (ep.method === "GET" && deps.invoke !== undefined) {
-      return new InvokeB64Transport({ invoke: deps.invoke });
-    }
-    return new SchemeBinaryTransport({ fetchFn: deps.fetchFn, transformUrl: ep.transformUrl, method: ep.method });
+  const url = await probeSchemeUrl(deps.fetchFn);
+  if (url !== null) {
+    return new SchemeBinaryTransport({ fetchFn: deps.fetchFn, transformUrl: url });
   }
   if (deps.invoke !== undefined) {
-    return new InvokeB64Transport({ invoke: deps.invoke });
+    return new TauriInvokeTransport({ invoke: deps.invoke });
   }
   return createTauriDataTransport(deps);
 }
@@ -109,7 +103,7 @@ export class TauriInvokeTransport implements BridgeTransport {
     batch: Uint8Array,
   ): Promise<Uint8Array> {
     if (command === 1) {
-      const raw = await this.invoke("poc_get_info");
+      const raw = await this.invoke("core_get_info");
       const core = (raw as { core?: { abiVersion?: unknown; version?: unknown } })?.core;
       if (typeof core?.abiVersion !== "number" || typeof core?.version !== "string") {
         throw new Error("tauri-invoke: invalid getInfo reply");
@@ -123,7 +117,7 @@ export class TauriInvokeTransport implements BridgeTransport {
     if (!dec.ok) {
       throw new Error(`tauri-invoke: invalid transform frame: ${dec.error.message}`);
     }
-    const raw = await this.invoke("poc_transform", {
+    const raw = await this.invoke("core_transform", {
       request: {
         values: valuesToArray(dec.valuesBytes, dec.count),
         multiplier: dec.multiplier,
@@ -151,7 +145,7 @@ export interface BinaryPort {
 }
 
 interface PortEnvelope {
-  readonly pocBinary: 1;
+  readonly coreBinary: 1;
   readonly id: number;
   readonly buffer: ArrayBuffer;
 }
@@ -159,7 +153,7 @@ interface PortEnvelope {
 function isPortEnvelope(v: unknown): v is PortEnvelope {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
-  return o["pocBinary"] === 1 && typeof o["id"] === "number" && o["buffer"] instanceof ArrayBuffer;
+  return o["coreBinary"] === 1 && typeof o["id"] === "number" && o["buffer"] instanceof ArrayBuffer;
 }
 
 /** transferable で ArrayBuffer の所有権を移して運ぶ。直列化して順序対応する。 */
@@ -192,7 +186,7 @@ export class PortTransport implements BridgeTransport {
           this.pending.push({ id, resolve, reject });
           try {
             this.port.postMessage(
-              { pocBinary: 1, id, buffer: copy.buffer as ArrayBuffer },
+              { coreBinary: 1, id, buffer: copy.buffer as ArrayBuffer },
               [copy.buffer as ArrayBuffer],
             );
           } catch (e) {
@@ -430,10 +424,9 @@ export interface BridgeDeps {
   readonly androidPipe?: BytePipe;
   readonly linuxPipe?: BytePipe;
   /** Tauri内でのデータプレーン選択。既定 "json" (従来動作・最安全)。 */
-  readonly tauriDataPlane?: "json" | "b64" | "scheme";
+  readonly tauriDataPlane?: "json" | "scheme";
   readonly fetchFn?: FetchFn;
   readonly transformUrl?: string;
-  readonly schemeMethod?: SchemeHttpMethod;
 }
 
 /** 環境検出に従い最適トランスポートを1つ構築する。経路がなければ throw。 */
@@ -449,10 +442,12 @@ export function createBridgeTransport(deps: BridgeDeps = {}): BridgeTransport {
       return new LinuxDirectTransport({ pipe: deps.linuxPipe, fallback: invokeFallback });
     case "webkit-ipc":
       return new WebKitIpcTransport({ pipe: deps.webkitPipe, fallback: invokeFallback });
-    case "android-port":
+    case "android-port": {
+      const port = getCorebinPort();
+      if (port) return new AndroidPortTransport({ port, fallback: invokeFallback });
       return new AndroidPortTransport({ pipe: deps.androidPipe, fallback: invokeFallback });
+    }
     case "tauri-invoke":
-    case "invoke-b64":
     case "scheme-binary":
       return createTauriDataTransport(deps);
     case "worker-message":
@@ -468,12 +463,7 @@ export function createTauriDataTransport(deps: BridgeDeps = {}): BridgeTransport
     return new SchemeBinaryTransport({
       fetchFn: deps.fetchFn,
       transformUrl: deps.transformUrl,
-      method: deps.schemeMethod,
     });
-  }
-  if (plane === "b64") {
-    if (deps.invoke === undefined) throw new Error("invoke-b64: no invoke function");
-    return new InvokeB64Transport({ invoke: deps.invoke });
   }
   if (deps.invoke === undefined) throw new Error("tauri-invoke: no invoke function");
   return new TauriInvokeTransport({ invoke: deps.invoke });

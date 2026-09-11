@@ -104,7 +104,11 @@ try {
     console.log(`| ${c.plane} | ${c.n} | ${c.iters} | ${c.medianMs.toFixed(3)} | ${c.p95Ms.toFixed(3)} |`);
   }
   if (!report.agreement) fail("checksum agreement failed");
-  if (!report.schemeReachable) fail("scheme not reachable");
+  if (!report.portReachable) fail("corebin port not reachable");
+  const planes = new Set(report.cases.map((c) => c.plane));
+  for (const p of ["invoke-json", "port-message", "seq-port-32", "bridge-port-32"]) {
+    if (!planes.has(p)) fail(`missing plane in report: ${p}`);
+  }
   log(`agreement ok, schemeUrl=${report.schemeUrl}`);
 } finally {
   ws.close();

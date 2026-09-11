@@ -1,5 +1,5 @@
 //! 共通バイナリ電文プロトコル (Wire Format v1) の Rust 側実装。
-//! `packages/core/include/poc_wire.h` とバイト単位で一致させる。
+//! `packages/core/include/core_wire.h` とバイト単位で一致させる。
 //! Tauri 非依存。確保は caller 側。exeptionなし (Result で返す)。
 
 pub const WIRE_SIZE: usize = 16;
@@ -403,7 +403,7 @@ pub fn decode_get_info_response(frame: &[u8]) -> Result<DecodedGetInfoResponse<'
     })
 }
 
-/// 共有リングバッファのレイアウト (`poc_wire.h` の POC_RING_* と同一)。
+/// 共有リングバッファのレイアウト (`core_wire.h` の CORE_RING_* と同一)。
 /// offset 0: head u32、offset 4: tail u32、offset 8: capacity u32、
 /// offset 12 以降が data[capacity]。空は head==tail で、1バイト空けて満杯判定する。
 pub const RING_META_SIZE: usize = 12;

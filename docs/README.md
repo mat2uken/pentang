@@ -33,5 +33,5 @@ PoC の計画・仕様・調査結果・検証記録・E2E を一箇所にまと
 ## 現状 (要点のみ)
 
 - 自動検証ラボの `full` profile で host、Web（Chromium/Firefox）、debug Tauri WebView、Android native/Chrome 実機が PASS。現行作業状態で APK を再生成し、Xperia と iPhone XS を同じ `devices` profile から確認して PASS とした。iOS は CoreDevice UUID→hardware UDID 解決、pymobiledevice3 11.12.1 native RSD CDP、Safari URL起動、URL一致ページの画面操作まで自動化した。Windows、release黒箱は後続である。詳細は `plan/13-automated-validation-lab.md` と `tools/device-lab/README.md` を参照。
-- `plan/` 内のファイル配置・パス表記は計画当時のもので、現行配置と異なる場合がある (例: `src/api` → `packages/api`、`apps/demo` → `apps/poc-demo`、`research/` → `docs/`)。正は `packages/`・`apps/` の実ファイル。
+- `plan/` 内のファイル配置・パス表記は計画当時のもので、現行配置と異なる場合がある (例: `src/api` → `packages/api`、`research/` → `docs/`)。正は `packages/`・`apps/` の実ファイル。
 - 実行記録の雛形は `plan/templates/run-record.md` を使用する。

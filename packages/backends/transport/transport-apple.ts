@@ -6,7 +6,7 @@
  * callAsyncJavaScript 引数バイナリを使い分ける。
  *
  * 現状の位置付け: Tauri 管理下の WKWebView では JS から直接 handler を
- * 追加できないため、将来の handler (`webkit.messageHandlers.pocBinary`) が
+ * 追加できないため、将来の handler (`webkit.messageHandlers.coreBinary`) が
  * 見える場合にのみ直結し、それまでは `fallback` (tauri-invoke) へ委譲する。
  * 大容量フレームは呼び出し側が CONTINUED フラグで分割する (本層は不透明運搬)。
  */

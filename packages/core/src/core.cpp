@@ -1,4 +1,4 @@
-#include "poc_core.h"
+#include "core.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -10,34 +10,34 @@ constexpr char kVersion[] = "0.1.0";
 
 }  // namespace
 
-uint32_t poc_core_abi_version(void) { return POC_CORE_ABI_VERSION; }
+uint32_t core_abi_version(void) { return CORE_ABI_VERSION; }
 
-const char* poc_core_version(void) { return kVersion; }
+const char* core_version(void) { return kVersion; }
 
-int32_t poc_transform_i32(const int32_t* input, uint32_t count,
+int32_t core_transform_i32(const int32_t* input, uint32_t count,
                           int32_t multiplier, int32_t offset, int32_t* output,
                           uint32_t output_capacity, uint32_t* checksum) {
   // 検査順: count上限 → checksum NULL → output_capacity不足 → count>0のinput/output NULL。
   // 全検査が終わる前に出力・checksumを書かない。エラー時は両方不変。
-  if (count > POC_CORE_MAX_VALUES) {
-    return POC_ERR_LIMIT_EXCEEDED;
+  if (count > CORE_MAX_VALUES) {
+    return CORE_ERR_LIMIT_EXCEEDED;
   }
   if (checksum == nullptr) {
-    return POC_ERR_INVALID_ARGUMENT;
+    return CORE_ERR_INVALID_ARGUMENT;
   }
   if (output_capacity < count) {
-    return POC_ERR_BUFFER_TOO_SMALL;
+    return CORE_ERR_BUFFER_TOO_SMALL;
   }
   if (count > 0) {
     if (input == nullptr || output == nullptr) {
-      return POC_ERR_INVALID_ARGUMENT;
+      return CORE_ERR_INVALID_ARGUMENT;
     }
   }
 
   // count==0: input/outputはNULL可。成功時checksum=0。
   if (count == 0) {
     *checksum = 0;
-    return POC_OK;
+    return CORE_OK;
   }
 
   constexpr int64_t kMin = static_cast<int64_t>(std::numeric_limits<int32_t>::min());
@@ -60,5 +60,5 @@ int32_t poc_transform_i32(const int32_t* input, uint32_t count,
     acc += static_cast<uint32_t>(clamped);
   }
   *checksum = acc;
-  return POC_OK;
+  return CORE_OK;
 }

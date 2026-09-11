@@ -179,44 +179,32 @@
         {
           "description": "Allow PoC getInfo/transform commands only (json + binary data plane)",
           "type": "string",
-          "const": "allow-poc-api",
+          "const": "allow-core-api",
           "markdownDescription": "Allow PoC getInfo/transform commands only (json + binary data plane)"
         },
         {
-          "description": "Enables the poc_get_info command without any pre-configured scope.",
+          "description": "Enables the core_get_info command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-poc-get-info",
-          "markdownDescription": "Enables the poc_get_info command without any pre-configured scope."
+          "const": "allow-core-get-info",
+          "markdownDescription": "Enables the core_get_info command without any pre-configured scope."
         },
         {
-          "description": "Enables the poc_transform command without any pre-configured scope.",
+          "description": "Enables the core_transform command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-poc-transform",
-          "markdownDescription": "Enables the poc_transform command without any pre-configured scope."
+          "const": "allow-core-transform",
+          "markdownDescription": "Enables the core_transform command without any pre-configured scope."
         },
         {
-          "description": "Enables the poc_transform_bin command without any pre-configured scope.",
+          "description": "Denies the core_get_info command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-poc-transform-bin",
-          "markdownDescription": "Enables the poc_transform_bin command without any pre-configured scope."
+          "const": "deny-core-get-info",
+          "markdownDescription": "Denies the core_get_info command without any pre-configured scope."
         },
         {
-          "description": "Denies the poc_get_info command without any pre-configured scope.",
+          "description": "Denies the core_transform command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-poc-get-info",
-          "markdownDescription": "Denies the poc_get_info command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the poc_transform command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-poc-transform",
-          "markdownDescription": "Denies the poc_transform command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the poc_transform_bin command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-poc-transform-bin",
-          "markdownDescription": "Denies the poc_transform_bin command without any pre-configured scope."
+          "const": "deny-core-transform",
+          "markdownDescription": "Denies the core_transform command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runSelfTest } from "../../apps/poc-demo/self-test/runner";
+import { runSelfTest } from "../../apps/demo/self-test/runner";
 import type { ApplicationApi } from "../../packages/api/application-api";
 import { validateTransformRequest } from "../../packages/api/validation";
 

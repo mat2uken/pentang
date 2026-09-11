@@ -1,4 +1,4 @@
-name: poc-app
+name: core-app
 options:
   bundleIdPrefix: dev.example.commoncorepoc
   deploymentTarget:
@@ -24,20 +24,20 @@ targetTemplates:
     settings:
       groups: [app]
 targets:
-  poc-app_iOS:
+  core-app_iOS:
     type: application
     platform: iOS
     sources:
       - path: Sources
       - path: Assets.xcassets
       - path: Externals
-      - path: poc-app_iOS
+      - path: core-app_iOS
       - path: assets
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
     info:
-      path: poc-app_iOS/Info.plist
+      path: core-app_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
@@ -54,7 +54,7 @@ targets:
         CFBundleShortVersionString: 0.1.0
         CFBundleVersion: "0.1.0"
     entitlements:
-      path: poc-app_iOS/poc-app_iOS.entitlements
+      path: core-app_iOS/core-app_iOS.entitlements
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full

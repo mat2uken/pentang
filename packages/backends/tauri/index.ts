@@ -14,14 +14,12 @@ import {
 import { RequestState } from "../request-state";
 import { checkResultLength, isSingleFailure, raceWithGuard } from "../pipeline";
 import { TransportError } from "../transport/bridge-interface";
-import { InvokeB64Transport } from "../transport/transport-b64";
+import { getCorebinPort, WebMessageTransport } from "../transport/transport-android";
 import {
-  POCBIN_TRANSFORM_URL,
+  COREBIN_TRANSFORM_URL,
   SchemeBinaryTransport,
-  probeSchemeEndpoint,
+  probeSchemeUrl,
   type FetchFn,
-  type SchemeEndpoint,
-  type SchemeHttpMethod,
 } from "../transport/transport-scheme";
 import {
   decodeTransformResponse,
@@ -36,12 +34,12 @@ export type InvokeFn = (
 ) => Promise<unknown>;
 
 /** transform用データプレーン。getInfo等の制御プレーンは常にJSON invoke。
- * - "json": 従来動作 (既定・最安全)。
- * - "b64": `poc_transform_bin` へbase64 batch。
- * - "scheme": `pocbin:` へraw binary fetch (最速)。
- * - "auto": scheme到達を確認できればscheme、不可ならjsonへ無音fallback。
+ * - "json": 従来動作 (既定・最安全・単一fallback)。
+ * - "scheme": `corebin:` へraw binary fetch。
+ * - "port": `window.corebin` WebMessagePort直結 (Android)。
+ * - "auto": 到達確認の上で port → scheme → json の順に選択。
  */
-export type TauriDataPlane = "json" | "b64" | "scheme" | "auto";
+export type TauriDataPlane = "json" | "scheme" | "port" | "auto";
 
 async function realInvoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
   const mod = await import("@tauri-apps/api/core");
@@ -76,17 +74,17 @@ class TauriBackend implements ApplicationApi {
   private readonly fetchFn?: FetchFn;
   private readonly setTimeoutFn: typeof setTimeout;
   private readonly clearTimeoutFn: typeof clearTimeout;
-  private plane: "json" | "b64" | "scheme" = "json";
+  private plane: "json" | "scheme" | "port" = "json";
   private schemeTransport: SchemeBinaryTransport | null = null;
-  private schemeTransformUrl: string = POCBIN_TRANSFORM_URL;
-  private schemeMethod: SchemeHttpMethod = "POST";
+  private portTransport: WebMessageTransport | null = null;
+  private schemeTransformUrl: string = COREBIN_TRANSFORM_URL;
 
   constructor(deps: TauriBackendDeps = {}) {
     this.invoke = deps.invoke ?? realInvoke;
     this.fetchFn = deps.fetchFn;
     this.dataPlaneOpt = deps.dataPlane ?? "json";
-    if (this.dataPlaneOpt === "b64") this.plane = "b64";
     if (this.dataPlaneOpt === "scheme") this.plane = "scheme";
+    if (this.dataPlaneOpt === "port") this.plane = "port";
     this.setTimeoutFn =
       deps.setTimeoutFn ??
       (((fn: (...a: never[]) => void, ms?: number, ...args: never[]) =>
@@ -113,7 +111,7 @@ class TauriBackend implements ApplicationApi {
       guard = reg.promise;
       // unhandled抑止のためcatchを付ける (raceでも処理するが二重安全)
       guard.catch(() => {});
-      const invokeP = this.invoke("poc_get_info");
+      const invokeP = this.invoke("core_get_info");
       const raw = await raceWithGuard(invokeP, guard, () => this.state.getSavedFailure(), "init timed out");
       const checked = validateRuntimeInfo(raw);
       if (!checked.ok) {
@@ -155,12 +153,12 @@ class TauriBackend implements ApplicationApi {
   }
 
   /** test/UI用: init後に確定したtransform用データプレーン */
-  get resolvedDataPlane(): "json" | "b64" | "scheme" {
+  get resolvedDataPlane(): "json" | "scheme" | "port" {
     return this.plane;
   }
 
   /** scheme到達probe (有界時間)。timeout・失敗時はnull (json fallback用)。 */
-  private probeSchemeBounded(): Promise<SchemeEndpoint | null> {
+  private probeSchemeBounded(): Promise<string | null> {
     return new Promise((resolve) => {
       let done = false;
       const timer = this.setTimeoutFn(() => {
@@ -169,7 +167,7 @@ class TauriBackend implements ApplicationApi {
           resolve(null);
         }
       }, 3000);
-      probeSchemeEndpoint(this.fetchFn).then(
+      probeSchemeUrl(this.fetchFn).then(
         (ep) => {
           if (!done) {
             done = true;
@@ -189,9 +187,22 @@ class TauriBackend implements ApplicationApi {
   }
 
   private async resolveDataPlane(): Promise<void> {
+    if (this.dataPlaneOpt === "port") {
+      // 明示指定: ネイティブ公開の生MessagePortに直結する。
+      // なければ初期化失敗として扱う (黙ってjsonに落とさない)。
+      const port = getCorebinPort();
+      if (port === null) {
+        const err = appError("INITIALIZATION_FAILED", "port transport unavailable");
+        this.state.failAll(err);
+        throw err;
+      }
+      this.portTransport = new WebMessageTransport({ port });
+      this.plane = "port";
+      return;
+    }
     if (this.dataPlaneOpt === "scheme") {
-      // 明示指定: 到達可能なendpoint (URL+方式) をピン留めする。
-      // どちらも不可の場合は初期化失敗として扱う (黙ってjsonに落とさない)。
+      // 明示指定: 到達可能なURLをピン留めする。
+      // 不可の場合は初期化失敗として扱う (黙ってjsonに落とさない)。
       const pinned = await this.probeSchemeBounded();
       if (pinned === null) {
         const err = appError("INITIALIZATION_FAILED", "scheme transport unreachable");
@@ -201,8 +212,7 @@ class TauriBackend implements ApplicationApi {
       try {
         this.schemeTransport = new SchemeBinaryTransport({
           fetchFn: this.fetchFn,
-          transformUrl: pinned.transformUrl,
-          method: pinned.method,
+          transformUrl: pinned,
         });
       } catch (e) {
         const err = appError(
@@ -212,38 +222,41 @@ class TauriBackend implements ApplicationApi {
         this.state.failAll(err);
         throw err;
       }
-      this.schemeTransformUrl = pinned.transformUrl;
-      this.schemeMethod = pinned.method;
+      this.schemeTransformUrl = pinned;
       this.plane = "scheme";
       return;
     }
     if (this.dataPlaneOpt === "auto") {
+      // 生Portがあれば最優先で試す (真バイナリ・方式判定不要)。
+      // なければscheme到達を確認し、不可ならjsonへ無音fallbackする。
+      const port = getCorebinPort();
+      if (port !== null) {
+        try {
+          this.portTransport = new WebMessageTransport({ port });
+          this.plane = "port";
+          return;
+        } catch {
+          // 構築失敗は下のscheme/jsonへ
+        }
+      }
       const pinned = await this.probeSchemeBounded();
-      // POST到達ならschemeが最速。GET迂回のみの環境 (Android相当) では
-      // 単発はinvoke-b64が速いためb64を選ぶ (emulator実測)。
-      if (pinned !== null && pinned.method === "POST") {
+      if (pinned !== null) {
         try {
           this.schemeTransport = new SchemeBinaryTransport({
             fetchFn: this.fetchFn,
-            transformUrl: pinned.transformUrl,
-            method: pinned.method,
+            transformUrl: pinned,
           });
-          this.schemeTransformUrl = pinned.transformUrl;
-          this.schemeMethod = pinned.method;
+          this.schemeTransformUrl = pinned;
           this.plane = "scheme";
           return;
         } catch {
-          // 構築失敗は下のb64/jsonへ
+          // 構築失敗は下のjsonへ
         }
-      }
-      if (pinned !== null && pinned.method === "GET") {
-        this.plane = "b64";
-        return;
       }
       this.plane = "json";
       return;
     }
-    // "json" / "b64" はconstructorで確定済み
+    // "json" / "port" はconstructor・明示例外を除き確定済み
   }
 
   async getInfo(): Promise<RuntimeInfo> {
@@ -251,7 +264,7 @@ class TauriBackend implements ApplicationApi {
     const reg = this.state.register("getInfo");
     const guard = reg.promise;
     guard.catch(() => {});
-    const invokeP = this.invoke("poc_get_info");
+    const invokeP = this.invoke("core_get_info");
     try {
       const raw = await raceWithGuard(invokeP, guard, () => this.state.getSavedFailure(), "timed out");
       const checked = validateRuntimeInfo(raw);
@@ -293,7 +306,7 @@ class TauriBackend implements ApplicationApi {
     // invoke開始前にpending登録済み。binary系はwire frame化して送る。
     const invokeP =
       this.plane === "json"
-        ? this.invoke("poc_transform", { request: snap })
+        ? this.invoke("core_transform", { request: snap })
         : this.sendBinaryFrame(snap, reg.id & 0xffff);
     try {
       const raw = await raceWithGuard(invokeP, guard, () => this.state.getSavedFailure(), "timed out");
@@ -354,15 +367,18 @@ class TauriBackend implements ApplicationApi {
       throw new TransportError("TRANSPORT_ERROR", `wire encode failed: ${String(e).slice(0, 200)}`);
     }
     let resp: Uint8Array;
-    if (this.plane === "b64") {
-      resp = await new InvokeB64Transport({ invoke: this.invoke }).send(req);
+    if (this.plane === "port") {
+      const t = this.portTransport;
+      if (!t) {
+        throw new TransportError("TRANSPORT_ERROR", "port transport missing");
+      }
+      resp = await t.send(req);
     } else {
       const t =
         this.schemeTransport ??
         new SchemeBinaryTransport({
           fetchFn: this.fetchFn,
           transformUrl: this.schemeTransformUrl,
-          method: this.schemeMethod,
         });
       this.schemeTransport = t;
       resp = await t.send(req);
@@ -400,8 +416,8 @@ export async function createTauriBackend(deps: TauriBackendDeps = {}): Promise<A
   return backend;
 }
 
-// composition root用の統一名 (web/nativeで同じapps/poc-demo/main.ts/ui.tsを使う)
-// native既定はauto: scheme到達時は最速経路、不可時は従来JSONへ無音fallback。
+// composition root用の統一名 (web/nativeで同じapps/demo/main.ts/ui.tsを使う)
+// native既定はauto: port → scheme → json の到達順に最速路を選ぶ (実測準拠)。
 export async function createBackend(): Promise<ApplicationApi> {
   return createTauriBackend({ dataPlane: "auto" });
 }

@@ -2,17 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { buildUrls, createBrowserBackend, createBrowserBackendForTest } from "../../packages/backends/browser/index";
 import { WORKER_PROTOCOL_VERSION } from "../../packages/backends/browser/worker-protocol";
 import { RequestState } from "../../packages/backends/request-state";
-import { runSelfTest } from "../../apps/poc-demo/self-test/runner";
+import { runSelfTest } from "../../apps/demo/self-test/runner";
 import { makeFakeWorker as makeWorker } from "./fake-worker";
 
 describe("branch extra: buildUrls/factory", () => {
   it("buildUrls uses document.baseURI", async () => {
     const origDoc = (globalThis as unknown as { document?: unknown }).document;
-    (globalThis as unknown as { document: unknown }).document = { baseURI: "https://example.test/poc/" };
+    (globalThis as unknown as { document: unknown }).document = { baseURI: "https://example.test/core/" };
     try {
       const urls = buildUrls();
-      expect(urls.moduleUrl).toContain("/wasm/poc-core.mjs");
-      expect(urls.wasmUrl).toContain("/wasm/poc-core.wasm");
+      expect(urls.moduleUrl).toContain("/wasm/core.mjs");
+      expect(urls.wasmUrl).toContain("/wasm/core.wasm");
     } finally {
       if (origDoc === undefined) delete (globalThis as unknown as { document?: unknown }).document;
       else (globalThis as unknown as { document: unknown }).document = origDoc;
@@ -24,8 +24,8 @@ describe("branch extra: buildUrls/factory", () => {
     // 明示URLでの生成経路。 composition rootは本経路を使う。
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     const info = await api.getInfo();
     expect(info.backend).toBe("wasm-worker");
@@ -63,7 +63,7 @@ describe("branch extra: buildUrls/factory", () => {
     } as unknown as Worker;
     const b = createBrowserBackendForTest(throwingWorker);
     // init will hang (no reply), then dispose triggers onDispose with throwing setters (covered, should not throw)
-    const initP = b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm").catch((e) => e);
+    const initP = b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm").catch((e) => e);
     await new Promise((r) => setTimeout(r, 20));
     await b.dispose();
     await initP;
@@ -73,7 +73,7 @@ describe("branch extra: buildUrls/factory", () => {
   it("stale reply clears entry, map-missing returns without side effects", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     // start getInfo then manually delete the unified entry to simulate a
     // classification/map skew (classify=pending, map missing)
     const p = b.getInfo().catch((e) => e);
@@ -106,7 +106,7 @@ describe("branch extra: buildUrls/factory", () => {
       queueMicrotask(() => worker.__emitMessage(data));
     });
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     // getInfo returning SINGLE should reject single but stay ready (isSingleFailure includes INVALID)
     // Note: getInfo SINGLE path does rejectOne and throws, staying ready.
     await expect(b.getInfo()).rejects.toMatchObject({ code: "INVALID_ARGUMENT" });
@@ -119,8 +119,8 @@ describe("branch extra: buildUrls/factory", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
       const data = { protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "getInfo", ok: true, data: { abiVersion: "bad", version: 123 } };
@@ -134,8 +134,8 @@ describe("branch extra: buildUrls/factory", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
       const data = { protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "transform", ok: false, error: { code: "CORE_FAILURE", message: "c boom" } };
@@ -149,7 +149,7 @@ describe("branch extra: buildUrls/factory", () => {
   it("dispose with rejecting entry that throws", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     const inner = b as unknown as { pending: Map<number, { method: string; resolve: (v: unknown) => void; reject: (e: unknown) => void }> };
     inner.pending.set(999, {
       method: "getInfo",
@@ -165,7 +165,7 @@ describe("branch extra: buildUrls/factory", () => {
   it("unified map invariant: flight entry carries method", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     expect((b as unknown as { pending: Map<number, unknown> }).pending.size).toBe(0);
     const p = b.getInfo();
     const inner = b as unknown as { pending: Map<number, { method: string }> };

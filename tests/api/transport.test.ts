@@ -6,7 +6,6 @@ import {
 } from "../../packages/backends/transport/bridge-interface";
 import {
   BatchingBridge,
-  InvokeB64Transport,
   PortTransport,
   SchemeBinaryTransport,
   TauriInvokeTransport,
@@ -14,7 +13,6 @@ import {
   createFastTauriTransport,
   createTauriDataTransport,
   probeSchemeBinary,
-  probeSchemeEndpoint,
   probeSchemeUrl,
   type BinaryPort,
 } from "../../packages/backends/transport/index";
@@ -24,10 +22,9 @@ import {
   normalizeTransportFailure,
   toTransferableCopy,
 } from "../../packages/backends/transport/bridge-interface";
-import { base64Decode, base64Encode } from "../../packages/api/base64";
 import { WebView2SharedTransport, isWebView2SharedAvailable } from "../../packages/backends/transport/transport-win";
 import { WebKitIpcTransport, isWebKitIpcAvailable } from "../../packages/backends/transport/transport-apple";
-import { AndroidPortTransport, isAndroidPortAvailable } from "../../packages/backends/transport/transport-android";
+import { AndroidPortTransport, WebMessageTransport, getCorebinPort, isAndroidPortAvailable } from "../../packages/backends/transport/transport-android";
 import { LinuxDirectTransport, isLinuxDirectAvailable } from "../../packages/backends/transport/transport-linux";
 import {
   decodeGetInfoResponse,
@@ -36,6 +33,7 @@ import {
   encodeGetInfoRequest,
   encodeTransformRequest,
   encodeTransformResponse,
+  scanFrames,
   valuesToArray,
 } from "../../packages/api/wire";
 
@@ -70,10 +68,9 @@ function encReq(seq: number, values: number[], multiplier = 2, offset = 1): Uint
   return out.slice(0, n);
 }
 
-// Rust schemeハンドラ相当のfake: POST body / GETクエリの両方を処理する。
-// androidLike: pocbin: URL自体が到達不能 (Android WebView相当)。
-// dropPostBody: POSTは到達するがbodyが空で届く (検証用)。
-function schemeEcho(opts: { androidLike?: boolean; dropPostBody?: boolean } = {}) {
+// Rust schemeハンドラ相当のfake: POST bodyを処理する。
+// androidLike: corebin: URL自体が到達不能 (Android WebView相当)。
+function schemeEcho(opts: { androidLike?: boolean } = {}) {
   return vi.fn(
     async (
       url: string,
@@ -95,23 +92,11 @@ function schemeEcho(opts: { androidLike?: boolean; dropPostBody?: boolean } = {}
       };
       const fail = (status: number, code: string, message: string) =>
         respond(new TextEncoder().encode(JSON.stringify({ code, message })), status);
-      if (opts.androidLike && url.startsWith("pocbin:")) throw new Error("Failed to fetch");
+      if (opts.androidLike && url.startsWith("corebin:")) throw new Error("Failed to fetch");
       if (url.endsWith("/health")) {
         return respond(new Uint8Array(0), 204);
       }
-      let reqBytes: Uint8Array;
-      if ((init?.method ?? "GET") === "GET") {
-        const q = url.split("?", 2)[1] ?? "";
-        const pair = q.split("&").find((p) => p.startsWith("data="));
-        if (pair === undefined) return fail(400, "INVALID_ARGUMENT", "missing data");
-        const std = pair.slice(5).replace(/-/g, "+").replace(/_/g, "/");
-        const padded = std + "=".repeat((4 - (std.length % 4)) % 4);
-        const dec = base64Decode(padded);
-        if (!dec.ok) return fail(400, "INVALID_ARGUMENT", "bad base64url");
-        reqBytes = dec.bytes;
-      } else {
-        reqBytes = opts.dropPostBody ? new Uint8Array(0) : (init?.body ?? new Uint8Array(0));
-      }
+      const reqBytes = init?.body ?? new Uint8Array(0);
       const d = decodeTransformRequest(reqBytes);
       if (!d.ok) return fail(400, "INVALID_ARGUMENT", "bad frame");
       const r = refTransform(valuesToArray(d.valuesBytes, d.count), d.multiplier, d.offset);
@@ -232,7 +217,7 @@ describe("bridge-interface helpers", () => {
 describe("TauriInvokeTransport (binary facade over JSON invoke)", () => {
   it("transform frame -> invoke args -> response frame", async () => {
     const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
-      expect(cmd).toBe("poc_transform");
+      expect(cmd).toBe("core_transform");
       const req = args!["request"] as { values: number[]; multiplier: number; offset: number };
       return refTransform(req.values, req.multiplier, req.offset);
     });
@@ -248,9 +233,9 @@ describe("TauriInvokeTransport (binary facade over JSON invoke)", () => {
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
-  it("getInfo frame -> poc_get_info -> response frame", async () => {
+  it("getInfo frame -> core_get_info -> response frame", async () => {
     const invoke = vi.fn(async (cmd: string) => {
-      expect(cmd).toBe("poc_get_info");
+      expect(cmd).toBe("core_get_info");
       return { core: { abiVersion: 1, version: "0.1.0" } };
     });
     const t = new TauriInvokeTransport({ invoke });
@@ -274,7 +259,7 @@ describe("TauriInvokeTransport (binary facade over JSON invoke)", () => {
     const n2 = encodeTransformRequest(batch, n1, { sequence: 2, values: [2], multiplier: 1, offset: 0 });
     // ネイティブ呼び出し2回で応答batchを組み立てる。
     const resp = await t.send(batch.slice(0, n1 + n2));
-    expect(seen).toEqual(["poc_transform", "poc_transform"]);
+    expect(seen).toEqual(["core_transform", "core_transform"]);
     expect(resp.length).toBe((16 + 8 + 4) * 2);
   });
 
@@ -302,6 +287,151 @@ describe("TauriInvokeTransport (binary facade over JSON invoke)", () => {
   });
 });
 
+describe("WebMessageTransport (raw port)", () => {
+  function loopbackRawPort() {
+    let handler: ((ev: { data: unknown }) => void) | null = null;
+    return {
+      postMessage(message: unknown) {
+        // 実portと同様、ArrayBuffer本体のみ受け付ける。batch可。
+        const bytes = message instanceof ArrayBuffer ? new Uint8Array(message) : new Uint8Array(0);
+        const scanned = scanFrames(bytes);
+        if (!scanned.ok) throw new Error("bad batch");
+        const parts: Uint8Array[] = [];
+        let total = 0;
+        for (const f of scanned.frames) {
+          const d = decodeTransformRequest(bytes.subarray(f.offset, f.offset + f.frameLen));
+          if (!d.ok) throw new Error("bad frame");
+          const r = refTransform(valuesToArray(d.valuesBytes, d.count), d.multiplier, d.offset);
+          const out = new Uint8Array(16 + 8 + r.values.length * 4);
+          const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: r.values, checksum: r.checksum });
+          parts.push(out.slice(0, n));
+          total += n;
+        }
+        const resp = new Uint8Array(total);
+        let o = 0;
+        for (const p of parts) {
+          resp.set(p, o);
+          o += p.length;
+        }
+        queueMicrotask(() => handler?.({ data: resp.buffer as ArrayBuffer }));
+      },
+      addEventListener(_type: string, listener: (ev: { data: unknown }) => void) {
+        handler = listener;
+      },
+    };
+  }
+
+  it("round-trips binary frames through a raw peer", async () => {
+    const t = new WebMessageTransport({ port: loopbackRawPort() });
+    expect(t.kind).toBe("android-port");
+    const resp = await t.send(encReq(9, [1, 2, 3]));
+    const d = decodeTransformResponse(resp);
+    expect(d.ok).toBe(true);
+    if (d.ok) {
+      expect(d.sequence).toBe(9);
+      expect(valuesToArray(d.valuesBytes, d.count)).toEqual([3, 5, 7]);
+      expect(d.checksum).toBe(15);
+    }
+  });
+
+  it("rejects invalid submits without sending", async () => {
+    const posted: unknown[] = [];
+    const port = {
+      postMessage: (m: unknown) => void posted.push(m),
+      addEventListener: (_t: string, _l: (ev: { data: unknown }) => void) => {},
+    };
+    const t = new WebMessageTransport({ port });
+    await expect(t.send(new Uint8Array([1, 2, 3]))).rejects.toThrow(/invalid request batch/);
+    await expect(t.send(encReq(1, [1]).slice(0, 20))).rejects.toThrow(/invalid request batch/);
+    await expect(t.send(new Uint8Array(0))).rejects.toThrow(/invalid request batch/);
+    expect(posted).toHaveLength(0);
+  });
+
+  it("round-trips a multi-frame batch", async () => {
+    const t = new WebMessageTransport({ port: loopbackRawPort() });
+    const a = encReq(11, [1]);
+    const b = encReq(12, [2, 3]);
+    const batch = new Uint8Array(a.length + b.length);
+    batch.set(a, 0);
+    batch.set(b, a.length);
+    const resp = await t.send(batch);
+    const scanned = scanFrames(resp);
+    expect(scanned.ok).toBe(true);
+    if (scanned.ok) {
+      expect(scanned.frames.length).toBe(2);
+      expect(scanned.frames[0]!.header.sequence).toBe(11);
+      expect(scanned.frames[1]!.header.sequence).toBe(12);
+    }
+  });
+
+  it("rejects non-ArrayBuffer responses and order mismatches", async () => {
+    let handler: ((ev: { data: unknown }) => void) | null = null;
+    const port = {
+      postMessage: (_m: unknown) => {},
+      addEventListener: (_t: string, l: (ev: { data: unknown }) => void) => {
+        handler = l;
+      },
+    };
+    const tick = () => new Promise<void>((r) => setTimeout(r, 0));
+    const t = new WebMessageTransport({ port });
+    const p1 = t.send(encReq(1, [1]));
+    await tick();
+    handler!({ data: "not-a-buffer" });
+    await expect(p1).rejects.toThrow(/must be ArrayBuffer/);
+    const p2 = t.send(encReq(2, [2]));
+    await tick();
+    // sequence不一致 (応答なし相当の別seq)。
+    handler!({ data: new Uint8Array(encReq(999, [9])).buffer as ArrayBuffer });
+    await expect(p2).rejects.toThrow(/order mismatch/);
+  });
+
+  it("cleans up when postMessage throws", async () => {
+    const port = {
+      postMessage: () => {
+        throw new Error("port dead");
+      },
+      addEventListener: (_t: string, _l: (ev: { data: unknown }) => void) => {},
+    };
+    const t = new WebMessageTransport({ port });
+    await expect(t.send(encReq(1, [1]))).rejects.toThrow("port dead");
+    await expect(t.send(encReq(2, [2]))).rejects.toThrow("port dead");
+  });
+
+  it("getCorebinPort detects the native hook safely", () => {
+    expect(getCorebinPort()).toBe(null);
+    const g = globalThis as Record<string, unknown>;
+    try {
+      g["corebin"] = { postMessage: () => {}, addEventListener: () => {} };
+      expect(getCorebinPort()).not.toBe(null);
+      g["corebin"] = { postMessage: "nope" };
+      expect(getCorebinPort()).toBe(null);
+      g["corebin"] = 42;
+      expect(getCorebinPort()).toBe(null);
+    } finally {
+      delete g["corebin"];
+    }
+    expect(getCorebinPort()).toBe(null);
+    expect(collectEnv().hasAndroidPort).toBe(false);
+  });
+
+  it("dispatcher prefers the raw port on Android", async () => {
+    const g = globalThis as Record<string, unknown>;
+    const port = loopbackRawPort();
+    try {
+      g["corebin"] = port;
+      expect(collectEnv().hasAndroidPort).toBe(true);
+      const t = createBridgeTransport({ env: baseEnv({ hasAndroidPort: true }) });
+      expect(t.kind).toBe("android-port");
+      const resp = await t.send(encReq(5, [4]));
+      const d = decodeTransformResponse(resp);
+      expect(d.ok).toBe(true);
+      if (d.ok) expect(valuesToArray(d.valuesBytes, d.count)).toEqual([9]);
+    } finally {
+      delete g["corebin"];
+    }
+  });
+});
+
 describe("PortTransport (transferable peer)", () => {
   function loopbackPeer(compute: (req: Uint8Array) => Uint8Array): BinaryPort {
     let handler: ((ev: { data: unknown }) => void) | null = null;
@@ -312,7 +442,7 @@ describe("PortTransport (transferable peer)", () => {
         const resp = compute(req);
         // 非同期応答 (所有権移転の体裁)。
         queueMicrotask(() => {
-          handler?.({ data: { pocBinary: 1, id: env.id, buffer: resp.buffer as ArrayBuffer } });
+          handler?.({ data: { coreBinary: 1, id: env.id, buffer: resp.buffer as ArrayBuffer } });
         });
       },
       addEventListener(_type: "message", listener: (ev: { data: unknown }) => void) {
@@ -357,12 +487,12 @@ describe("PortTransport (transferable peer)", () => {
     // 順序不一致も待機中のpendingを拒否する (id=2が先頭のため9999は不一致)。
     const p2 = t.send(encReq(2, [2]));
     await tick();
-    handler!({ data: { pocBinary: 1, id: 9999, buffer: new ArrayBuffer(8) } });
+    handler!({ data: { coreBinary: 1, id: 9999, buffer: new ArrayBuffer(8) } });
     await expect(p2).rejects.toThrow(/order mismatch/);
     // 正常応答は解決する。
     const p3 = t.send(encReq(3, [3]));
     await tick();
-    handler!({ data: { pocBinary: 1, id: 3, buffer: new ArrayBuffer(8) } });
+    handler!({ data: { coreBinary: 1, id: 3, buffer: new ArrayBuffer(8) } });
     const resp = await p3;
     expect(resp).toBeInstanceOf(Uint8Array);
   });
@@ -564,12 +694,9 @@ describe("createBridgeTransport", () => {
     expect(t.kind).toBe("webview2-shared");
   });
 
-  it("tauriDataPlane selects b64/scheme/json explicitly", () => {
+  it("tauriDataPlane selects scheme/json explicitly", () => {
     const invoke = vi.fn(async () => "");
-    expect(
-      createTauriDataTransport({ invoke, tauriDataPlane: "b64" }).kind,
-    ).toBe("invoke-b64");
-    expect(createTauriDataTransport({ tauriDataPlane: "scheme" }).kind).toBe(
+    expect(createTauriDataTransport({ invoke, tauriDataPlane: "scheme" }).kind).toBe(
       "scheme-binary",
     );
     expect(createTauriDataTransport({ invoke }).kind).toBe("tauri-invoke");
@@ -603,73 +730,6 @@ describe("createBridgeTransport", () => {
   });
 });
 
-describe("InvokeB64Transport", () => {
-  it("round-trips a batch through base64 invoke", async () => {
-    const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
-      expect(cmd).toBe("poc_transform_bin");
-      const dec = base64Decode(args!["data"] as string);
-      expect(dec.ok).toBe(true);
-      if (!dec.ok) throw new Error("bad b64");
-      // 試験double: 要求をdecodeして恒等応答をencodeする。
-      const { decodeTransformRequest, encodeTransformResponse } = await import(
-        "../../packages/api/wire"
-      );
-      const d = decodeTransformRequest(dec.bytes);
-      expect(d.ok).toBe(true);
-      if (!d.ok) throw new Error("bad frame");
-      const out = new Uint8Array(16 + 8 + d.count * 4);
-      const vals = valuesToArray(d.valuesBytes, d.count);
-      const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: vals, checksum: 7 });
-      return base64Encode(out.slice(0, n));
-    });
-    const t = new InvokeB64Transport({ invoke });
-    expect(t.kind).toBe("invoke-b64");
-    const resp = await t.send(encReq(5, [9]));
-    const d = decodeTransformResponse(resp);
-    expect(d.ok).toBe(true);
-    if (d.ok) {
-      expect(d.sequence).toBe(5);
-      expect(valuesToArray(d.valuesBytes, d.count)).toEqual([9]);
-    }
-    expect(invoke).toHaveBeenCalledTimes(1);
-  });
-
-  it("propagates invoke {code,message} rejection with code", async () => {
-    const invoke = vi.fn(async () => {
-      throw { code: "LIMIT_EXCEEDED", message: "too long" };
-    });
-    const t = new InvokeB64Transport({ invoke });
-    const err = await t.send(encReq(1, [1])).catch((e) => e);
-    expect(err.code).toBe("LIMIT_EXCEEDED");
-  });
-
-  it("rejects non-string responses", async () => {
-    const invoke = vi.fn(async () => ({ data: "x" }));
-    const t = new InvokeB64Transport({ invoke });
-    await expect(t.send(encReq(1, [1]))).rejects.toThrow();
-  });
-
-  it("rejects malformed base64 responses", async () => {
-    const invoke = vi.fn(async () => "!!!not-base64!!!");
-    const t = new InvokeB64Transport({ invoke });
-    await expect(t.send(encReq(1, [1]))).rejects.toMatchObject({ code: "TRANSPORT_ERROR" });
-  });
-
-  it("coerces string and unknown rejections", async () => {
-    const t1 = new InvokeB64Transport({
-      invoke: vi.fn(async () => {
-        throw "string-failure";
-      }),
-    });
-    await expect(t1.send(encReq(1, [1]))).rejects.toMatchObject({ code: "TRANSPORT_ERROR" });
-    const t2 = new InvokeB64Transport({
-      invoke: vi.fn(async () => {
-        throw 42;
-      }),
-    });
-    await expect(t2.send(encReq(1, [1]))).rejects.toMatchObject({ code: "TRANSPORT_ERROR" });
-  });
-});
 
 describe("SchemeBinaryTransport", () => {
   function fakeFetch(handler: (body: Uint8Array) => { status: number; body: Uint8Array }) {
@@ -701,7 +761,7 @@ describe("SchemeBinaryTransport", () => {
     expect([...resp]).toEqual([...req]);
     expect(fetchFn).toHaveBeenCalledTimes(1);
     const [url, init] = fetchFn.mock.calls[0] as [string, { body?: Uint8Array }];
-    expect(url).toBe("pocbin://localhost/transform");
+    expect(url).toBe("corebin://localhost/transform");
     // 正確なviewは複写なしで渡す (所有権はflight中呼び出し側が保持)。
     expect(init.body).toBe(req);
     // 部分viewは範囲外保持を避けて複写する。
@@ -737,59 +797,21 @@ describe("SchemeBinaryTransport", () => {
     expect(await probeSchemeBinary(undefined)).toBe(false);
   });
 
-  it("probeSchemeUrl prefers custom scheme, falls back to http workaround", async () => {
-    // 旧API互換: endpoint probeのURL部分だけを見る。
-    expect(await probeSchemeUrl(schemeEcho())).toBe("pocbin://localhost/transform");
-    expect(await probeSchemeUrl(schemeEcho({ androidLike: true }))).toBe(
-      "http://pocbin.localhost/transform",
-    );
+  it("probeSchemeUrl validates POST round trip", async () => {
+    expect(await probeSchemeUrl(schemeEcho())).toBe("corebin://localhost/transform");
+    // POST body不達 (空batch 400)・custom scheme不達・fetch失敗はすべてnull。
+    const emptyPost = vi.fn(async () => ({
+      status: 400,
+      ok: false,
+      arrayBuffer: async () => new ArrayBuffer(0),
+      text: async () => JSON.stringify({ code: "INVALID_ARGUMENT", message: "empty" }),
+    }));
+    expect(await probeSchemeUrl(emptyPost)).toBe(null);
+    expect(await probeSchemeUrl(schemeEcho({ androidLike: true }))).toBe(null);
     expect(await probeSchemeUrl(async () => {
       throw new Error("down");
     })).toBe(null);
     expect(await probeSchemeUrl(undefined)).toBe(null);
-  });
-
-  it("probeSchemeEndpoint can pin http POST", async () => {
-    const f = vi.fn(
-      async (
-        url: string,
-        init?: { method?: string; body?: Uint8Array },
-      ): Promise<{
-        readonly status: number;
-        readonly ok: boolean;
-        arrayBuffer(): Promise<ArrayBuffer>;
-        text(): Promise<string>;
-      }> => {
-        // pocbin: 不達 + GET不通。http POSTのみ応答する環境。
-        if (url.startsWith("pocbin:")) throw new Error("Failed to fetch");
-        if ((init?.method ?? "GET") === "GET") throw new Error("no GET");
-        const d = decodeTransformRequest(init?.body ?? new Uint8Array(0));
-        if (!d.ok) throw new Error("bad frame");
-        const r = refTransform(valuesToArray(d.valuesBytes, d.count), d.multiplier, d.offset);
-        const out = new Uint8Array(16 + 8 + r.values.length * 4);
-        const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: r.values, checksum: r.checksum });
-        const body = out.slice(0, n);
-        const buf = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
-        return {
-          status: 200,
-          ok: true,
-          arrayBuffer: async () => buf as ArrayBuffer,
-          text: async () => new TextDecoder().decode(body),
-        };
-      },
-    );
-    expect(await probeSchemeEndpoint(f)).toEqual({
-      transformUrl: "http://pocbin.localhost/transform",
-      method: "POST",
-    });
-  });
-
-  it("GET query rejects oversized requests before sending", async () => {
-    const fetchFn = schemeEcho();
-    const t = new SchemeBinaryTransport({ fetchFn, transformUrl: "http://pocbin.localhost/transform", method: "GET" });
-    const big = new Uint8Array(65537);
-    await expect(t.send(big)).rejects.toMatchObject({ code: "LIMIT_EXCEEDED" });
-    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("fetch rejection surfaces as TRANSPORT_ERROR", async () => {
@@ -799,26 +821,6 @@ describe("SchemeBinaryTransport", () => {
       },
     });
     await expect(t.send(encReq(1, [1]))).rejects.toMatchObject({ code: "TRANSPORT_ERROR" });
-  });
-
-  it("probeSchemeEndpoint selects POST, else GET, else null", async () => {
-    expect(await probeSchemeEndpoint(schemeEcho())).toEqual({
-      transformUrl: "pocbin://localhost/transform",
-      method: "POST",
-    });
-    // POST body不達でもGETクエリが通ればGETでpin留めする。
-    expect(await probeSchemeEndpoint(schemeEcho({ dropPostBody: true }))).toEqual({
-      transformUrl: "pocbin://localhost/transform",
-      method: "GET",
-    });
-    // custom scheme自体が不可ならhttp迂回+GET。
-    expect(await probeSchemeEndpoint(schemeEcho({ androidLike: true }))).toEqual({
-      transformUrl: "http://pocbin.localhost/transform",
-      method: "GET",
-    });
-    expect(await probeSchemeEndpoint(async () => {
-      throw new Error("down");
-    })).toBe(null);
   });
 });
 
@@ -833,10 +835,10 @@ describe("createFastTauriTransport (measured preference with fallback)", () => {
     expect(t.kind).toBe("scheme-binary");
   });
 
-  it("falls back to b64 then json", async () => {
+  it("falls back to json", async () => {
     const invoke = vi.fn(async () => "");
-    const b64 = await createFastTauriTransport({ fetchFn: downFetch, invoke });
-    expect(b64.kind).toBe("invoke-b64");
+    const t = await createFastTauriTransport({ fetchFn: downFetch, invoke });
+    expect(t.kind).toBe("tauri-invoke");
     const json = await createFastTauriTransport({
       fetchFn: downFetch,
       invoke,
@@ -847,22 +849,13 @@ describe("createFastTauriTransport (measured preference with fallback)", () => {
 
   it("explicit tauriDataPlane wins over probing", async () => {
     const invoke = vi.fn(async () => "");
-    const t = await createFastTauriTransport({ fetchFn: okFetch, invoke, tauriDataPlane: "b64" });
-    expect(t.kind).toBe("invoke-b64");
+    const t = await createFastTauriTransport({ fetchFn: okFetch, invoke, tauriDataPlane: "scheme" });
+    expect(t.kind).toBe("scheme-binary");
   });
 
-  it("GET-only endpoint prefers b64 single sends when invoke exists", async () => {
+  it("scheme-unreachable Android falls back to json", async () => {
     const invoke = vi.fn(async () => "");
     const t = await createFastTauriTransport({ fetchFn: schemeEcho({ androidLike: true }), invoke });
-    expect(t.kind).toBe("invoke-b64");
-    const fetchFn = schemeEcho({ androidLike: true });
-    const t2 = await createFastTauriTransport({ fetchFn });
-    expect(t2.kind).toBe("scheme-binary");
-    // methodはGETクエリ運搬で送られること。
-    const req = encReq(3, [7]);
-    const resp = await t2.send(req);
-    expect([...resp].length).toBeGreaterThan(0);
-    const sentUrl = (fetchFn.mock.calls.at(-1) as [string, unknown])[0] as string;
-    expect(sentUrl.startsWith("http://pocbin.localhost/transform?data=")).toBe(true);
+    expect(t.kind).toBe("tauri-invoke");
   });
 });

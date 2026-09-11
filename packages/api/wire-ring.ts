@@ -3,10 +3,10 @@
  * 背景: センサー・音声・描画コマンド等の高頻度転送で IPC を毎回呼ぶと
  * ブリッジ呼び出しオーバーヘッド (コンテキストスイッチ) で処理落ちする。
  * 送信側はフレームを溜め、閾値または周期タイミングで1回のブリッジ呼び出しに
- * まとめる。受信側は `scanFrames` / `poc_wire_next_frame` ループで一括消費する。
+ * まとめる。受信側は `scanFrames` / `core_wire_next_frame` ループで一括消費する。
  *
  * - `WireRing`: WASM 線形メモリ上にも置ける Head/Tail/Capacity + データ領域。
- *   `packages/core/include/poc_wire.h` の POC_RING_* と同一レイアウト。
+ *   `packages/core/include/core_wire.h` の CORE_RING_* と同一レイアウト。
  *   WASM メモリの slice に attach すれば、JS 側から直接 head/tail を進められる。
  * - `FrameBatcher`: 通常ヒープ上の簡易版。完全なエンコード済みフレームを
  *   `push` で溜め、閾値到達または `flush()` で1本の連結バッファとして取り出す。

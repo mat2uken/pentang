@@ -6,8 +6,8 @@ PoC の検証対象であり、再利用する部分。UI・配信・署名を�
 
 | 配置 | 内容 | プラットフォーム |
 |---|---|---|
-| `core/` | C++ 共通コア (`include/poc_core.h`, `src/core.cpp`, `tests/core_test.cpp`)。OS・Tauri・Emscripten 非依存 | 共通 |
-| `ffi/` | Rust FFI (`poc-core-ffi`)。unsafe 封じ・寿命管理。Tauri 非依存 | ネイティブ共通 |
+| `core/` | C++ 共通コア (`include/core.h`, `src/core.cpp`, `tests/core_test.cpp`)。OS・Tauri・Emscripten 非依存 | 共通 |
+| `ffi/` | Rust FFI (`core-ffi`)。unsafe 封じ・寿命管理。Tauri 非依存 | ネイティブ共通 |
 | `api/` | TS 共通 API (`application-api.ts`, `errors.ts`, `validation.ts`) + 契約 fixture (`fixtures/golden-vectors.json`) | 共通 |
 | `backends/` | TS バックエンド。直下の `pipeline.ts`・`request-state.ts` は両 backend 共有 | — |
 | `backends/browser/` | Worker + WASM 経由 (`index.ts`, `core.worker.ts`, `worker-protocol.ts`, `wasm-types.ts`) | Web |
@@ -16,12 +16,12 @@ PoC の検証対象であり、再利用する部分。UI・配信・署名を�
 ## 依存方向
 
 - `core` ← `ffi` / `core` → (Emscripten) → WASM ← `backends/browser`
-- `api` ← `backends/*` ← アプリ (`apps/poc-demo`、`src-tauri` の commands)
+- `api` ← `backends/*` ← アプリ (`apps/demo`、`src-tauri` の commands)
 - `browser` と `tauri` は互いを import しない。共有は `pipeline.ts` / `request-state.ts` のみ。
 
 ## 試験・ビルド
 
 - C++ 単体: `npm run test:core`
-- Rust FFI: `cargo test -p poc-core-ffi --locked`
+- Rust FFI: `cargo test -p core-ffi --locked`
 - TS 単体 (`tests/api/`、契約 fixture 準拠): `npm run test:api`
 - 仕様の由来: `docs/plan/04-contracts.md`。凍結した原文は `docs/plan/reference/poc-v1/` (実行コードから import しない)。

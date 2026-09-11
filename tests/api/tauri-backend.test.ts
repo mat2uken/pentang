@@ -17,8 +17,8 @@ function okInfo() {
 describe("tauri-backend", () => {
   it("init成功・基本変換・入力不変", async () => {
     const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
-      if (cmd === "poc_get_info") return okInfo();
-      if (cmd === "poc_transform") {
+      if (cmd === "core_get_info") return okInfo();
+      if (cmd === "core_transform") {
         const req = (args as { request: { values: number[]; multiplier: number; offset: number } }).request;
         const values = req.values.map((v) => {
           const r = v * req.multiplier + req.offset;
@@ -80,7 +80,7 @@ describe("tauri-backend", () => {
     let calls = 0;
     const invoke = vi.fn(async (cmd: string) => {
       calls++;
-      if (calls === 1 && cmd === "poc_get_info") return okInfo();
+      if (calls === 1 && cmd === "core_get_info") return okInfo();
       throw "boom-string";
     });
     const api = await createTauriBackendWithDeps({ invoke });
@@ -110,7 +110,7 @@ describe("tauri-backend", () => {
 
   it("応答の形不正はTRANSPORT_ERROR (A-03/life-08)", async () => {
     const invoke = vi.fn(async (cmd: string) => {
-      if (cmd === "poc_get_info") return okInfo();
+      if (cmd === "core_get_info") return okInfo();
       return { values: [1, 2], checksum: -1 };
     });
     const api = await createTauriBackendWithDeps({ invoke });

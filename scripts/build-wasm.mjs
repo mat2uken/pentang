@@ -56,7 +56,7 @@ function main() {
     "--no-entry",
     "-sMODULARIZE=1",
     "-sEXPORT_ES6=1",
-    "-sEXPORT_NAME=createPocCore",
+    "-sEXPORT_NAME=createCore",
     "-sENVIRONMENT=worker",
     "-sALLOW_MEMORY_GROWTH=1",
     "-sINITIAL_MEMORY=16777216",
@@ -64,14 +64,14 @@ function main() {
     "-sABORTING_MALLOC=0",
     "-sFILESYSTEM=0",
     "-sDYNAMIC_EXECUTION=0",
-    '-sEXPORTED_FUNCTIONS=["_poc_core_abi_version","_poc_core_version","_poc_transform_i32","_malloc","_free"]',
+    '-sEXPORTED_FUNCTIONS=["_core_abi_version","_core_version","_core_transform_i32","_malloc","_free"]',
     '-sEXPORTED_RUNTIME_METHODS=["UTF8ToString","HEAP32","HEAPU32"]',
   ];
 
-  const tmpDir = path.join(tmpdir(), `poc-wasm-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+  const tmpDir = path.join(tmpdir(), `core-wasm-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
   mkdirSync(tmpDir, { recursive: true });
-  const tmpMjs = path.join(tmpDir, "poc-core.mjs");
-  const tmpWasm = path.join(tmpDir, "poc-core.wasm");
+  const tmpMjs = path.join(tmpDir, "core.mjs");
+  const tmpWasm = path.join(tmpDir, "core.wasm");
   const fullArgs = [...args, "-o", tmpMjs];
 
   console.log(`$ em++ ${fullArgs.map((a) => (a.includes(" ") ? JSON.stringify(a) : a)).join(" ")}`);
@@ -98,8 +98,8 @@ function main() {
 
   const outDir = path.join(ROOT, "web-public/wasm");
   mkdirSync(outDir, { recursive: true });
-  const outMjs = path.join(outDir, "poc-core.mjs");
-  const outWasm = path.join(outDir, "poc-core.wasm");
+  const outMjs = path.join(outDir, "core.mjs");
+  const outWasm = path.join(outDir, "core.wasm");
   // 成功後にmjs/wasmの存在とhashを確認し、組として公開先へ移す。
   renameSync(tmpMjs, outMjs);
   renameSync(tmpWasm, outWasm);
@@ -114,11 +114,11 @@ function main() {
     emxx,
     emVersion: emVersion(emxx),
     src: `packages/core/src/core.cpp sha256=${sha256File(src)}`,
-    header: `packages/core/include/poc_core.h sha256=${sha256File(path.join(include, "poc_core.h"))}`,
+    header: `packages/core/include/core.h sha256=${sha256File(path.join(include, "core.h"))}`,
     args,
     outputs: {
-      "web-public/wasm/poc-core.mjs": sha256File(outMjs),
-      "web-public/wasm/poc-core.wasm": sha256File(outWasm),
+      "web-public/wasm/core.mjs": sha256File(outMjs),
+      "web-public/wasm/core.wasm": sha256File(outWasm),
     },
     memory: { initial: 16777216, maximum: 67108864, growth: true, target: "wasm32" },
   };

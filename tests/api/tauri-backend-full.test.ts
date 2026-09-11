@@ -18,7 +18,7 @@ function okInfo() {
 describe("tauri-backend full branches", () => {
   it("init: invoke string rejection -> TRANSPORT (saved)", async () => {
     const invoke = vi.fn(async (cmd: string) => {
-      if (cmd === "poc_get_info") throw "string-boom";
+      if (cmd === "core_get_info") throw "string-boom";
       throw new Error("unreach");
     });
     const b = createTauriBackendForTest({ invoke });
@@ -54,13 +54,13 @@ describe("tauri-backend full branches", () => {
   it("getInfo: SINGLE stays ready (INVALID single failure)", async () => {
     // transform returning INVALID_ARGUMENT from native should be single (ready维持)
     const invoke = vi.fn(async (cmd: string) => {
-      if (cmd === "poc_get_info") return okInfo();
+      if (cmd === "core_get_info") return okInfo();
       return { code: "INVALID_ARGUMENT", message: "bad" };
     });
     // Our mock returns object with code/message, but validateTransformResult will treat as TRANSPORT
     // Instead make native throw AppError SINGLE:
     const invoke2 = vi.fn(async (cmd: string) => {
-      if (cmd === "poc_get_info") return okInfo();
+      if (cmd === "core_get_info") return okInfo();
       throw { code: "INVALID_ARGUMENT", message: "bad-input" };
     });
     const api = await createTauriBackendWithDeps({ invoke: invoke2 });
@@ -90,7 +90,7 @@ describe("tauri-backend full branches", () => {
 
   it("transform: length mismatch -> TRANSPORT failed", async () => {
     const invoke = vi.fn(async (cmd: string) => {
-      if (cmd === "poc_get_info") return okInfo();
+      if (cmd === "core_get_info") return okInfo();
       return { values: [1], checksum: 1 };
     });
     const api = await createTauriBackendWithDeps({ invoke });
@@ -110,7 +110,7 @@ describe("tauri-backend full branches", () => {
       calls++;
       if (calls === 1) return Promise.resolve(okInfo());
       // transform hangs
-      if (_cmd === "poc_transform") return gate;
+      if (_cmd === "core_transform") return gate;
       return Promise.resolve(okInfo());
     });
     const b = createTauriBackendForTest({ invoke });
@@ -134,7 +134,7 @@ describe("tauri-backend full branches", () => {
     let calls = 0;
     const invoke = vi.fn(async (cmd: string) => {
       calls++;
-      if (calls === 1 && cmd === "poc_get_info") return okInfo();
+      if (calls === 1 && cmd === "core_get_info") return okInfo();
       throw { code: "CORE_FAILURE", message: "c boom" };
     });
     const api = await createTauriBackendWithDeps({ invoke });
@@ -151,7 +151,7 @@ describe("tauri-backend full branches", () => {
     let calls = 0;
     const invoke = vi.fn(async (cmd: string) => {
       calls++;
-      if (calls === 1 && cmd === "poc_get_info") return okInfo();
+      if (calls === 1 && cmd === "core_get_info") return okInfo();
       throw new Error("transport boom");
     });
     const api = await createTauriBackendWithDeps({ invoke });

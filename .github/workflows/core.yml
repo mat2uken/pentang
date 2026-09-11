@@ -1,4 +1,4 @@
-name: poc
+name: core
 
 on:
   push:
@@ -50,8 +50,8 @@ jobs:
       - run: npm ci
       - run: npm run doctor -- --target native --phase build
       - run: npm run test:core
-      - run: cargo test -p poc-core-ffi --locked
-      - run: cargo test -p poc-app --lib --locked
+      - run: cargo test -p core-ffi --locked
+      - run: cargo test -p core-app --lib --locked
       - run: npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app
 
   android:

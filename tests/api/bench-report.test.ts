@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { postReport, resolveReportTarget } from "../../apps/poc-demo/self-test/bench-runner";
-import type { BenchReport } from "../../apps/poc-demo/self-test/bench-runner";
+import { postReport, resolveReportTarget } from "../../apps/demo/self-test/bench-runner";
+import type { BenchReport } from "../../apps/demo/self-test/bench-runner";
 
 function dummyReport(): BenchReport {
   return {
@@ -9,8 +9,8 @@ function dummyReport(): BenchReport {
     timestamp: "2026-01-01T00:00:00Z",
     timerQuantumMs: 0,
     schemeReachable: true,
-    schemeUrl: "pocbin://localhost/transform",
-    schemeMethod: "POST",
+    schemeUrl: "corebin://localhost/transform",
+    portReachable: false,
     cases: [],
     agreement: true,
   };

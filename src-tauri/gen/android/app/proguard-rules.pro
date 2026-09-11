@@ -19,3 +19,6 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# CorebinPort: JNI受け口 (Rust側のJava_..._handleBatchと名前対応) と
+# WebMessageリスナーのコールバックを難読化から守る (release data plane用)。
+-keep class dev.example.commoncorepoc.CorebinPort { *; }

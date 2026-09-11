@@ -35,7 +35,7 @@
 
 ```sh
 npm run doctor -- --target native --phase build
-cargo test -p poc-core-ffi --locked
+cargo test -p core-ffi --locked
 npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app
 ```
 
@@ -92,8 +92,8 @@ adb -s <SERIAL> install -r <APK_PATH>
 npm ci
 npm run doctor -- --target native --phase build
 npm run test:core
-cargo test -p poc-core-ffi --locked
-cargo test -p poc-app --lib --locked
+cargo test -p core-ffi --locked
+cargo test -p core-app --lib --locked
 npm run tauri -- build --debug --no-bundle --target x86_64-pc-windows-msvc
 ```
 

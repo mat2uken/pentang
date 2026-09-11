@@ -47,10 +47,17 @@ describe("Tauri WebView IPC bench", () => {
     }
 
     if (!report.agreement) throw new Error("checksum agreement failed across planes");
-    if (!report.schemeReachable) throw new Error("pocbin: scheme not reachable");
     const planes = new Set(report.cases.map((c) => c.plane));
-    for (const p of ["invoke-json", "invoke-b64", "scheme-binary"]) {
-      if (!planes.has(p)) throw new Error(`missing plane in report: ${p}`);
+    if (!planes.has("invoke-json")) throw new Error("missing plane in report: invoke-json");
+    // バイナリ面は環境到達に応じて scheme-binary / port-message のいずれかが必須。
+    if (!planes.has("scheme-binary") && !planes.has("port-message")) {
+      throw new Error("missing binary plane in report");
+    }
+    // 生Port公開環境 (Android) ではport系も必須とする。
+    if (report.portReachable) {
+      for (const p of ["port-message", "seq-port-32", "bridge-port-32"]) {
+        if (!planes.has(p)) throw new Error(`missing plane in report: ${p}`);
+      }
     }
   });
 });

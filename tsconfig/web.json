@@ -7,5 +7,5 @@
       "@backend": ["../packages/backends/browser/index.ts"]
     }
   },
-  "include": ["../apps/poc-demo/main.ts", "../apps/poc-demo/ui.ts", "../apps/poc-demo/self-test/**/*.ts", "../packages/api/**/*.ts", "../packages/backends/browser/**/*.ts", "../packages/backends/transport/**/*.ts", "../packages/backends/request-state.ts", "../packages/backends/pipeline.ts", "../index.html", "../vite.config.ts", "../docs/harness/harness.ts"]
+  "include": ["../apps/demo/main.ts", "../apps/demo/ui.ts", "../apps/demo/self-test/**/*.ts", "../packages/api/**/*.ts", "../packages/backends/browser/**/*.ts", "../packages/backends/transport/**/*.ts", "../packages/backends/request-state.ts", "../packages/backends/pipeline.ts", "../index.html", "../vite.config.ts", "../docs/harness/harness.ts"]
 }

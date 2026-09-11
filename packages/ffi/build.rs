@@ -193,11 +193,11 @@ fn main() {
     println!("cargo:rerun-if-changed={}", src.display());
     println!(
         "cargo:rerun-if-changed={}",
-        include.join("poc_core.h").display()
+        include.join("core.h").display()
     );
     println!(
         "cargo:rerun-if-changed={}",
-        include.join("poc_wire.h").display()
+        include.join("core_wire.h").display()
     );
     for name in [
         "ANDROID_HOME",
@@ -214,7 +214,7 @@ fn main() {
     // TARGET / OUT_DIR はccが利用する。verboseログでcompiler引数を確認する。
     let target = std::env::var("TARGET").unwrap_or_default();
     if !target.is_empty() {
-        println!("cargo:warning=poc-core-ffi target={target}");
+        println!("cargo:warning=core-ffi target={target}");
     }
 
     let mut build = cc::Build::new();
@@ -223,15 +223,15 @@ fn main() {
         android_tools(&target, &manifest_dir).unwrap_or_else(|error| panic!("{error}"))
     {
         println!(
-            "cargo:warning=poc-core-ffi Android compiler={}",
+            "cargo:warning=core-ffi Android compiler={}",
             tools.compiler.display()
         );
         println!(
-            "cargo:warning=poc-core-ffi Android archiver={}",
+            "cargo:warning=core-ffi Android archiver={}",
             tools.archiver.display()
         );
         build.compiler(tools.compiler);
         build.archiver(tools.archiver);
     }
-    build.compile("poc_core");
+    build.compile("core");
 }

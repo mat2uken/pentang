@@ -4,7 +4,7 @@
  * (0コピー)。C++ 側から JSC TypedArray のバッファを直接更新して返す。
  *
  * 現状の位置付け: Tauri 管理下では拡張 .so の同梱・登録が別途必要なため、
- * 将来の直結 hook (`__POC_DIRECT_BRIDGE__`) が見える場合に 0コピー経路を使い、
+ * 将来の直結 hook (`__CORE_DIRECT_BRIDGE__`) が見える場合に 0コピー経路を使い、
  * それまでは `fallback` (tauri-invoke) へ委譲する薄いラッパーである。
  */
 import {

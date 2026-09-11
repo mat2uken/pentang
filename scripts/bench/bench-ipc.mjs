@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bench-ipc.mjs — JS側シリアライズのマイクロベンチ (アプリ不要)。
-// JSON vs wire-raw vs wire-b64 のペイロードbyte数・encode/decode時間を比較する。
-// packages/api/wire.ts と base64.ts をesbuildで束ねて読み込む。
+// JSON vs wire-raw のペイロードbyte数・encode/decode時間を比較する。
+// packages/api/wire.ts をesbuildで束ねて読み込む。
 // 結果は .lab-state/bench/ipc-micro-<timestamp>.json に保存し、md表をstdoutに出す。
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -58,8 +58,7 @@ async function loadWire() {
   const entry = path.join(dir, "entry.mjs");
   writeFileSync(
     entry,
-    `export * from ${JSON.stringify(path.join(ROOT, "packages/api/wire.ts"))};\n` +
-      `export * as b64 from ${JSON.stringify(path.join(ROOT, "packages/api/base64.ts"))};\n`,
+    `export * from ${JSON.stringify(path.join(ROOT, "packages/api/wire.ts"))};\n`,
   );
   const outFile = path.join(dir, "wire.bundle.mjs");
   await esbuild.build({
@@ -141,33 +140,11 @@ async function main() {
       tWDec.push(performance.now() - t0);
     }
 
-    // --- wire + base64 ---
-    const b64Str = W.b64.base64Encode(wireReq);
-    const b64Bytes = Buffer.byteLength(b64Str, "utf8");
-    const tBEnc = [];
-    for (let i = 0; i < reps; i++) {
-      const t0 = performance.now();
-      W.encodeTransformRequest(wireBuf, 0, { sequence: 1, values, multiplier: 2, offset: 1 });
-      W.b64.base64Encode(wireBuf.subarray(0, wireLen));
-      tBEnc.push(performance.now() - t0);
-    }
-    const tBDec = [];
-    for (let i = 0; i < reps; i++) {
-      const t0 = performance.now();
-      const dec = W.b64.base64Decode(b64Str);
-      if (!dec.ok) throw new Error("b64 dec failed");
-      const d = W.decodeTransformRequest(dec.bytes);
-      if (!d.ok) throw new Error("wire dec failed");
-      W.valuesToArray(d.valuesBytes, d.count);
-      tBDec.push(performance.now() - t0);
-    }
-
     rows.push({
       n,
       reps,
       json: { bytes: jsonBytes, encMs: median(tJEnc), decMs: median(tJDec), walkMs: median(tJWalk), encP95: p95(tJEnc), decP95: p95(tJDec) },
       wire: { bytes: wireLen, encMs: median(tWEnc), decMs: median(tWDec), encP95: p95(tWEnc), decP95: p95(tWDec) },
-      b64: { bytes: b64Bytes, encMs: median(tBEnc), decMs: median(tBDec), encP95: p95(tBEnc), decP95: p95(tBDec) },
     });
   }
 
@@ -180,11 +157,6 @@ async function main() {
       const b = new Uint8Array(16 + 12 + v.length * 4);
       const n = W.encodeTransformRequest(b, 0, { sequence: 1, values: v, multiplier: 2, offset: 1 });
       return b.slice(0, n);
-    }],
-    ["b64", (v) => {
-      const b = new Uint8Array(16 + 12 + v.length * 4);
-      const n = W.encodeTransformRequest(b, 0, { sequence: 1, values: v, multiplier: 2, offset: 1 });
-      return W.b64.base64Encode(b.subarray(0, n));
     }],
   ]) {
     if (global.gc) global.gc();
@@ -226,7 +198,6 @@ async function main() {
     const f = (x) => x.toFixed(4);
     console.log(`| ${r.n} | json | ${r.json.bytes} | ${f(r.json.encMs)} | ${f(r.json.decMs)}+walk${f(r.json.walkMs)} |`);
     console.log(`| ${r.n} | wire | ${r.wire.bytes} | ${f(r.wire.encMs)} | ${f(r.wire.decMs)} |`);
-    console.log(`| ${r.n} | b64 | ${r.b64.bytes} | ${f(r.b64.encMs)} | ${f(r.b64.decMs)} |`);
   }
   console.log("| 保持200件(N=4096) | heap増分 | 1件あたり |");
   console.log("|---|---|---|");

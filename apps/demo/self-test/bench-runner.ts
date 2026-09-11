@@ -11,9 +11,9 @@ import {
   scanFrames,
   valuesToArray,
 } from "../../../packages/api/wire";
-import { InvokeB64Transport } from "../../../packages/backends/transport/transport-b64";
 import { BatchingBridge } from "../../../packages/backends/transport/index";
-import { SchemeBinaryTransport, probeSchemeEndpoint } from "../../../packages/backends/transport/transport-scheme";
+import { SchemeBinaryTransport, probeSchemeUrl } from "../../../packages/backends/transport/transport-scheme";
+import { WebMessageTransport, getCorebinPort } from "../../../packages/backends/transport/transport-android";
 
 export interface BenchCaseResult {
   plane: string;
@@ -34,7 +34,7 @@ export interface BenchReport {
   timerQuantumMs: number;
   schemeReachable: boolean;
   schemeUrl: string | null;
-  schemeMethod: string | null;
+  portReachable: boolean;
   cases: BenchCaseResult[];
   agreement: boolean;
 }
@@ -126,16 +126,15 @@ export async function runBench(): Promise<BenchReport> {
     }
     timerQuantumMs = Number.isFinite(minDelta) ? minDelta : 0;
   }
-  const schemeEndpoint = await probeSchemeEndpoint();
-  const schemeUrl = schemeEndpoint === null ? null : schemeEndpoint.transformUrl;
-  const schemeReachable = schemeEndpoint !== null;
-  const b64 = new InvokeB64Transport({ invoke });
-  const scheme = schemeEndpoint === null
+  const schemeUrl = await probeSchemeUrl();
+  const schemeReachable = schemeUrl !== null;
+  const scheme = schemeUrl === null
     ? null
-    : new SchemeBinaryTransport({
-        transformUrl: schemeEndpoint.transformUrl,
-        method: schemeEndpoint.method,
-      });
+    : new SchemeBinaryTransport({ transformUrl: schemeUrl });
+  // ネイティブ公開の生MessagePort (Android)。あれば全条件で計測する。
+  const rawPort = getCorebinPort();
+  const portReachable = rawPort !== null;
+  const portMsg = rawPort === null ? null : new WebMessageTransport({ port: rawPort });
   const cases: BenchCaseResult[] = [];
   const checksums = new Map<string, number>();
 
@@ -178,7 +177,7 @@ export async function runBench(): Promise<BenchReport> {
       for (let g = -1; g < groups; g++) {
         const t0 = performance.now();
         for (let k = 0; k < perGroup; k++) {
-          const raw = (await invoke("poc_transform", {
+          const raw = (await invoke("core_transform", {
             request: { values, multiplier: 2, offset: 1 },
           })) as { values: number[]; checksum: number };
           if (g === 0 && k === 0) {
@@ -195,12 +194,12 @@ export async function runBench(): Promise<BenchReport> {
       checksums.set(`json:${n}`, checksum);
     }
 
-    // b64 / scheme: wire frame単位 (scheme不可環境ではb64・jsonのみ)。
-    const planeSenders: Array<readonly [string, (b: Uint8Array) => Promise<Uint8Array>]> = [
-      ["invoke-b64", (b: Uint8Array) => b64.send(b)],
-    ];
+    // scheme / port: wire frame単位 (到達時のみ)。
+    const planeSenders: Array<readonly [string, (b: Uint8Array) => Promise<Uint8Array>]> = [];
     const sch = scheme;
     if (sch !== null) planeSenders.push(["scheme-binary", (b: Uint8Array) => sch.send(b)]);
+    const pm = portMsg;
+    if (pm !== null) planeSenders.push(["port-message", (b: Uint8Array) => pm.send(b)]);
     for (const [plane, send] of planeSenders) {
       const frame0 = encodeReq(seq, values);
       const { samples, respBytes, checksum } = await measure(send);
@@ -245,7 +244,7 @@ export async function runBench(): Promise<BenchReport> {
     {
       const samples = await groupSample(async () => {
         for (let k = 0; k < frames; k++) {
-          const raw = (await invoke("poc_transform", {
+          const raw = (await invoke("core_transform", {
             request: { values, multiplier: 2, offset: 1 },
           })) as { checksum: number };
           if (raw.checksum !== expected) throw new Error("checksum mismatch (json batch)");
@@ -325,6 +324,42 @@ export async function runBench(): Promise<BenchReport> {
       cases.push({ plane: "bridge-scheme-32", n: 3, iters: groups * frames, reqBytes: 40 * frames, respBytes: 0, medianMs: s.median, p95Ms: s.p95, meanMs: s.mean, checksum: expected });
     }
     } // end if (schBatch !== null)
+    // 生Port逐次×32・Bridge (port到達時のみ)。
+    const pmBatch = portMsg;
+    if (pmBatch !== null) {
+      {
+        const samples = await groupSample(async () => {
+          for (let k = 0; k < frames; k++) {
+            const resp = await pmBatch.send(encodeReq(8000 + k, values));
+            const dec = decodeChecksum(resp);
+            if (dec.checksum !== expected) throw new Error("checksum mismatch (port seq)");
+          }
+        });
+        const s = stats(samples);
+        cases.push({ plane: "seq-port-32", n: 3, iters: groups * frames, reqBytes: 40 * frames, respBytes: 0, medianMs: s.median, p95Ms: s.p95, meanMs: s.mean, checksum: expected });
+      }
+      {
+        const samples = await groupSample(async () => {
+          const bridge = new BatchingBridge(pmBatch, { maxFrames: frames });
+          try {
+            const pending: Promise<Uint8Array>[] = [];
+            for (let k = 0; k < frames; k++) {
+              pending.push(bridge.submit(encodeReq(9000 + k, values)));
+            }
+            const resps = await Promise.all(pending);
+            for (const r of resps) {
+              if (decodeChecksum(r).checksum !== expected) {
+                throw new Error("checksum mismatch (port bridge)");
+              }
+            }
+          } finally {
+            bridge.close();
+          }
+        });
+        const s = stats(samples);
+        cases.push({ plane: "bridge-port-32", n: 3, iters: groups * frames, reqBytes: 40 * frames, respBytes: 0, medianMs: s.median, p95Ms: s.p95, meanMs: s.mean, checksum: expected });
+      }
+    }
     checksums.set("batch:3", expected);
   }
 
@@ -335,7 +370,7 @@ export async function runBench(): Promise<BenchReport> {
     timerQuantumMs,
     schemeReachable,
     schemeUrl,
-    schemeMethod: schemeEndpoint === null ? null : schemeEndpoint.method,
+    portReachable,
     cases,
     agreement,
   };

@@ -13,9 +13,9 @@ mod ffi {
     use std::os::raw::{c_char, c_int};
 
     unsafe extern "C" {
-        pub fn poc_core_abi_version() -> u32;
-        pub fn poc_core_version() -> *const c_char;
-        pub fn poc_transform_i32(
+        pub fn core_abi_version() -> u32;
+        pub fn core_version() -> *const c_char;
+        pub fn core_transform_i32(
             input: *const c_int,
             count: u32,
             multiplier: c_int,
@@ -75,11 +75,11 @@ impl std::error::Error for CoreError {}
 pub fn get_info() -> Result<CoreInfo, CoreError> {
     // SAFETY: C関数はグローバル状態を持たず、callerのメモリを保持しない。
     // 版文字列は静的UTF-8で、解放せずコピーする。
-    let abi = unsafe { ffi::poc_core_abi_version() };
-    let ptr = unsafe { ffi::poc_core_version() };
+    let abi = unsafe { ffi::core_abi_version() };
+    let ptr = unsafe { ffi::core_version() };
     if ptr.is_null() {
         return Err(CoreError::CoreFailure(
-            "poc_core_version returned null".to_string(),
+            "core_version returned null".to_string(),
         ));
     }
     // SAFETY: NUL終端であることがC headerの契約。UTF-8不正は契約違反として失敗させる。
@@ -87,7 +87,7 @@ pub fn get_info() -> Result<CoreInfo, CoreError> {
     let version = unsafe {
         CStr::from_ptr(ptr as *const c_char)
             .to_str()
-            .map_err(|_| CoreError::CoreFailure("poc_core_version is not valid UTF-8".to_string()))?
+            .map_err(|_| CoreError::CoreFailure("core_version is not valid UTF-8".to_string()))?
             .to_owned()
     };
     Ok(CoreInfo {
@@ -132,7 +132,7 @@ pub fn transform(
     // SAFETY: callerは実際に有効な整列領域を用意し、input/output/checksumを重ねない。
     // Cはpointerを保持しない。全検査後に呼び出す。
     let status = unsafe {
-        ffi::poc_transform_i32(
+        ffi::core_transform_i32(
             in_ptr,
             count,
             multiplier,
@@ -151,7 +151,7 @@ pub fn transform(
         // 検証済み引数でCが非0を返した場合はwrapper不具合としてCORE_FAILURE。
         // callerの入力不正はこの層より前 (TS/Rust command) で拒否する。
         Err(CoreError::CoreFailure(format!(
-            "poc_transform_i32 unexpected status={status}"
+            "core_transform_i32 unexpected status={status}"
         )))
     }
 }

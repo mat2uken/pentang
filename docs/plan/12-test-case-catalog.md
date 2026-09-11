@@ -36,15 +36,15 @@ input-11〜input-14等のJS固有表現はTSで生成する。Rustでは対応�
 
 | ケース | C引数の条件 | 期待 |
 |---|---|---|
-| core-01 | count=0、input/output=NULL、cap=0、checksum有効 | POC_OK、checksum=0 |
-| core-02 | count=1、input=NULL、output/cap/checksum有効 | POC_ERR_INVALID_ARGUMENT |
-| core-03 | count=1、output=NULL、input/cap/checksum有効 | POC_ERR_INVALID_ARGUMENT |
-| core-04 | count=1、checksum=NULL、ほか有効 | POC_ERR_INVALID_ARGUMENT |
-| core-05 | count=1、cap=0、ほか有効 | POC_ERR_BUFFER_TOO_SMALL |
-| core-06 | count=4097、3pointerともNULL、cap=0 | POC_ERR_LIMIT_EXCEEDED。pointerを読む前に終了 |
-| core-07 | count=1、checksum=NULL、cap=0 | POC_ERR_INVALID_ARGUMENT。capacityより先 |
-| core-08 | count=1、input/output=NULL、cap=0、checksum有効 | POC_ERR_BUFFER_TOO_SMALL。input/output NULLより先 |
-| core-09 | count=0、checksum=NULL | POC_ERR_INVALID_ARGUMENT |
+| core-01 | count=0、input/output=NULL、cap=0、checksum有効 | CORE_OK、checksum=0 |
+| core-02 | count=1、input=NULL、output/cap/checksum有効 | CORE_ERR_INVALID_ARGUMENT |
+| core-03 | count=1、output=NULL、input/cap/checksum有効 | CORE_ERR_INVALID_ARGUMENT |
+| core-04 | count=1、checksum=NULL、ほか有効 | CORE_ERR_INVALID_ARGUMENT |
+| core-05 | count=1、cap=0、ほか有効 | CORE_ERR_BUFFER_TOO_SMALL |
+| core-06 | count=4097、3pointerともNULL、cap=0 | CORE_ERR_LIMIT_EXCEEDED。pointerを読む前に終了 |
+| core-07 | count=1、checksum=NULL、cap=0 | CORE_ERR_INVALID_ARGUMENT。capacityより先 |
+| core-08 | count=1、input/output=NULL、cap=0、checksum有効 | CORE_ERR_BUFFER_TOO_SMALL。input/output NULLより先 |
+| core-09 | count=0、checksum=NULL | CORE_ERR_INVALID_ARGUMENT |
 | core-10 | 成功/失敗の入出力の前後にsentinel | 指定領域外は不変。失敗時は出力と既存checksumも不変 |
 
 core-01〜core-09はC-02、core-10はC-03に対応する。無効pointerや実際より大きいallocationを偽る試験を作らない。

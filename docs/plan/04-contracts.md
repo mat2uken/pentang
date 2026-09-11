@@ -7,7 +7,7 @@
 | 元定義 | 実装開始時の配置先・以後の編集先 |
 |---|---|
 | `contracts/application-api.ts` | `src/api/application-api.ts` |
-| `contracts/poc_core.h` | `cpp/include/poc_core.h` |
+| `contracts/poc_core.h` | `cpp/include/core.h` |
 | `contracts/worker-protocol.ts` | `src/backends/browser/worker-protocol.ts` |
 | `fixtures/golden-vectors.json` | `tests/fixtures/golden-vectors.json` |
 
@@ -48,32 +48,42 @@ UIでの説明に加え、両Backendの受付、Rust command、Workerが同じ�
 NaN / Infinity / undefined / bigint / string / null / 欠落要素はJSON化やHEAPコピーより前に拒否する。複数の不備がある場合もこの順序に従う。通常のvalidation失敗でインスタンスをfailedへ移さない。
 
 Rust commandは `request: serde_json::Value` 等で受けて明示的に検査する。TauriBackendからは常に正しい外側のIPC引数形を送る。command名の誤り、外側の引数欠落、権限拒否等のTauri自身の失敗は入力データのINVALID_ARGUMENTと混同せずTRANSPORT_ERRORへ整形する。
+なお `core_transform` 自体が Tauri 標準 I/F (`invoke` + 独自command) であり、
+これ以上「標準のみ」へ寄せる余地はない: 公開JS API に汎用計算手段はなく
+(`invoke`/`Channel`/`Resource` のみで全てJSON)、plugin化しても同一
+`invoke_handler` 経路に載るだけで表面だけ増える。Rust側の再検証も削れない
+(WebView由来の入力は信頼できないため。直接invokeでの不正入力拒否は実機確認済み)。
 
 ## native IPCの形
 
 | 呼び出し | 引数 | 成功値 |
 |---|---|---|
-| `invoke('poc_get_info')` | なし | 完全なRuntimeInfo |
-| `invoke('poc_transform', { request: snapshot })` | requestを1段包む | TransformResult |
-| `invoke('poc_transform_bin', { data: base64 })` | base64化したwire要求batch | base64化したwire応答batch |
-| `POST pocbin://localhost/transform` (body: wire要求batch生バイト) | なし (bodyが引数) | wire応答batch生バイト (`application/octet-stream`) |
+| `invoke('core_get_info')` | なし | 完全なRuntimeInfo |
+| `invoke('core_transform', { request: snapshot })` | requestを1段包む | TransformResult |
+| `POST corebin://localhost/transform` (body: wire要求batch生バイト) | なし (bodyが引数) | wire応答batch生バイト (`application/octet-stream`) |
 
-`poc_transform_bin` と `pocbin:` はバイナリデータプレーンで、検証・計算・エラー型は `src-tauri/src/batch.rs` の `process_batch` に一本化する (二重実装しない)。batch内エラーは打ち切りで単一AppErrorを返す。scheme失敗時はHTTP status (400/413/507/500) + JSON AppError body。`poc_get_info` は制御プレーンとしてJSONのまま。権限・manifest・CSPの対象に新経路を含める (`allow-poc-api`、`AppManifest::commands`、`connect-src ... pocbin: http://pocbin.localhost`)。
+`corebin:` はバイナリデータプレーンで、検証・計算・エラー型は `src-tauri/src/batch.rs` の `process_batch` に一本化する (二重実装しない)。batch内エラーは打ち切りで単一AppErrorを返す。scheme失敗時はHTTP status (400/413/507/500) + JSON AppError body。`core_get_info` / `core_transform` はJSONのまま残し、制御プレーンと単一fallbackを担う。権限・manifest・CSPの対象に新経路を含める (`allow-core-api`、`AppManifest::commands`、`connect-src ... corebin:`)。
 
-Android WebViewはcustom schemeをネットワーク層へ配送せず、POST bodyも `shouldInterceptRequest` に渡さない (実機確認済み)。同環境ではWRYのhttp迂回 (`http://pocbin.localhost/...`) と `GET /transform?data=<base64url>` を使う。応答は同じ生バイト。URL選択とPOST/GET方式は起動時probe (`probeSchemeEndpoint`) でピン留めし、到達不能時はb64→jsonへ段階fallbackする。GETクエリ運搬は64KiB上限 (`SCHEME_GET_MAX_BYTES`) を超えたら `LIMIT_EXCEEDED` で拒否する。
+Android ではネイティブ公開の `window.corebin` (WebMessageChannel+ArrayBuffer)
+による真バイナリ直結が最速。`CorebinPort` (Kotlin, `addWebMessageListener`) が
+Rust `process_batch` を JNI (`CorebinPort.handleBatch`) で呼び、応答も ArrayBuffer
+で返す。transfer指定は当該WebViewで変換失敗になるため使わず構造化クローンで送る。
+エラー時は空応答で速やかに失敗させる (fail-closed、不正入力は壊れた応答扱い)。
+JS `addWebMessageListener` の port へ view を投げると変換失敗になるため、
+常に ArrayBuffer 本体を投げること。gen/android の再生成時は `MainActivity` の
+結線2箇所と `CorebinPort.kt`、`proguard-rules.pro` の keep 指定を再適用する。
 
-単発要求の既定選択は計測準拠とする (emulator-5554実測): POST到達環境ではscheme、
-GET迂回のみの環境 (Android相当) ではinvoke-b64 (N=3〜4096の全域でjson/scheme-GETに
-全勝: N=4096中央値で json 4.2ms / b64 2.1ms / scheme-GET 3.0ms)。この切替は
-`createFastTauriTransport` と backend の `auto` が endpoint probe (URL+方式) の
-結果で行い、呼び出し側の指定は不要。batch利用者は
-`SchemeBinaryTransport` + `BatchingBridge` を明示構築する (32件束ねでper-op約10倍:
-逐次json 0.6ms → 0.06ms)。iOS Simulator (iPhone 16, iOS 18.5) では `pocbin://` +
-POST が到達し、desktopと同順位 (N=4096中央値: json 2.9ms / b64 2.1ms / scheme 0.6ms)。
-実機 Xperia (Android 15, WebView 152) でも同順位を確認。
+単発要求の既定選択は計測準拠とする。POST到達環境 (desktop/iOS) ではscheme、
+生Port公開環境 (Android) ではport、到達不能時はjsonへ無音fallbackする
+(Xperia実機 N=4096中央値: json 7.1ms / port 0.98ms)。この切替は
+`createFastTauriTransport` と backend の `auto` が port検出→scheme probe
+の結果で行い、呼び出し側の指定は不要。batch利用者は
+対応transport + `BatchingBridge` を明示構築する (32件束ねでper-op約10倍:
+逐次json 0.6ms → scheme 0.06ms、port 0.02ms)。iOS Simulator (iPhone 16, iOS 18.5) では `corebin://` +
+POST が到達し、desktopと同順位 (N=4096中央値: json 2.9ms / scheme 0.6ms)。
 実測JSONは `.lab-state/bench/` (`android-*`, `ios-*`, `webview-*`) を参照。
 
-TauriBackendのtransform用データプレーンは `dataPlane` 指定で切替える (既定 `"json"`)。`"auto"` はinit時に `pocbin:/health` 到達を確認し、到達可ならscheme・不可ならjsonへ無音fallbackする (到達確認の失敗でinitは落とさない)。`"scheme"` 明示指定でtransport構築に失敗した場合のみINITIALIZATION_FAILED。binary系の応答はsequence一致の単一frameを要求し、不一致はTRANSPORT_ERROR。エラーcodeはserver由来を引き継ぎ、単発/致命の分類はJSON経路と同一 (`isSingleFailure`)。実測 (macOS WKWebView, N=4096中央値): json 2.0〜2.3ms / b64 1.4〜1.6ms / scheme 0.4ms。32件batchの単一fetch化でper-op 0.25ms → 0.008ms (約32倍)。詳細は `.lab-state/bench/` の各JSONを参照。
+TauriBackendのtransform用データプレーンは `dataPlane` 指定で切替える (既定 `"json"`)。`"auto"` はinit時に生Port→scheme POST到達の順に確認し、到達可なら当該経路・不可ならjsonへ無音fallbackする (到達確認の失敗でinitは落とさない)。`"scheme"` / `"port"` 明示指定で到達不能の場合のみINITIALIZATION_FAILED。binary系の応答はsequence一致の単一frameを要求し、不一致はTRANSPORT_ERROR。エラーcodeはserver由来を引き継ぎ、単発/致命の分類はJSON経路と同一 (`isSingleFailure`)。実測 (macOS WKWebView, N=4096中央値): json 2.0〜2.3ms / scheme 0.4ms。32件batchの単一送信化でper-op 0.25ms → 0.008ms (約32倍)。詳細は `.lab-state/bench/` の各JSONを参照。
 
 RustのRuntimeInfoは `apiVersion`、`backend`、`hostOs`、`execution`、`core`。coreは `abiVersion` と `version`、TransformResultは `values` と `checksum`。serdeでcamelCaseへ揃え、snake_caseのfieldをwireへ出さない。
 

@@ -221,9 +221,9 @@ async function main() {
     if (csp !== expectedCSP) fail(`CSP mismatch: ${csp}`);
     if (cc !== "no-store") fail(`cache-control mismatch: ${cc}`);
     if (!ct.includes("text/html")) fail(`content-type mismatch: ${ct}`);
-    const mjsRes = await fetch(`http://127.0.0.1:${port}${base === "/" ? "/" : base}wasm/poc-core.mjs`);
+    const mjsRes = await fetch(`http://127.0.0.1:${port}${base === "/" ? "/" : base}wasm/core.mjs`);
     if (mjsRes.status !== 200 || !(mjsRes.headers.get("content-type") ?? "").includes("javascript")) fail("mjs MIME failed");
-    const wasmRes = await fetch(`http://127.0.0.1:${port}${base === "/" ? "/" : base}wasm/poc-core.wasm`);
+    const wasmRes = await fetch(`http://127.0.0.1:${port}${base === "/" ? "/" : base}wasm/core.wasm`);
     if (wasmRes.status !== 200 || wasmRes.headers.get("content-type") !== "application/wasm") fail("wasm MIME failed");
     const missRes = await fetch(`http://127.0.0.1:${port}${base === "/" ? "/" : base}wasm/missing.wasm`);
     if (missRes.status !== 404) fail("404 failed");

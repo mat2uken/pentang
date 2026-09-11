@@ -65,7 +65,7 @@ fn golden_vectors_match_ffi() {
     // valid 10件
     assert_eq!(golden.valid.len(), 10, "valid must be 10");
     for case in &golden.valid {
-        let r = poc_core_ffi::transform(
+        let r = core_ffi::transform(
             &case.request.values,
             case.request.multiplier,
             case.request.offset,
@@ -88,7 +88,7 @@ fn golden_vectors_match_ffi() {
     let mul = max.multiplier.unwrap();
     let off = max.offset.unwrap();
     let input = vec![rep; count];
-    let r = poc_core_ffi::transform(&input, mul, off).expect("maximum-length");
+    let r = core_ffi::transform(&input, mul, off).expect("maximum-length");
     assert_eq!(r.values.len(), count);
     assert!(r.values.iter().all(|&v| v == max.expected_value.unwrap()));
     assert_eq!(r.checksum, max.expected_checksum.unwrap());
@@ -100,13 +100,13 @@ fn golden_vectors_match_ffi() {
         .find(|c| c.id == "too-long")
         .expect("too-long");
     let input2 = vec![1i32; too_long.count.unwrap()];
-    let e = poc_core_ffi::transform(&input2, 1, 0).expect_err("too-long must fail");
+    let e = core_ffi::transform(&input2, 1, 0).expect_err("too-long must fail");
     assert_eq!(e.code(), "LIMIT_EXCEEDED");
 }
 
 #[test]
 fn core_info_matches_header() {
-    let info = poc_core_ffi::get_info().expect("get_info");
+    let info = core_ffi::get_info().expect("get_info");
     assert_eq!(info.abi_version, 1);
     assert_eq!(info.version, "0.1.0");
 }

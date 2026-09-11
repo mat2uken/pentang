@@ -112,10 +112,10 @@ async function main() {
   if (htmlRes.status !== 200) fail(`html status ${htmlRes.status}`);
   if ((htmlRes.headers.get("content-security-policy") ?? "") !== expectedCSP) fail("CSP mismatch");
   if ((htmlRes.headers.get("cache-control") ?? "") !== "no-store") fail("no-store missing");
-  const mjsUrl = new URL("wasm/poc-core.mjs", baseUrl).toString();
+  const mjsUrl = new URL("wasm/core.mjs", baseUrl).toString();
   const mjsRes = await fetch(mjsUrl);
   if (mjsRes.status !== 200 || !(mjsRes.headers.get("content-type") ?? "").includes("javascript")) fail("mjs MIME");
-  const wasmRes = await fetch(new URL("wasm/poc-core.wasm", baseUrl).toString());
+  const wasmRes = await fetch(new URL("wasm/core.wasm", baseUrl).toString());
   if (wasmRes.status !== 200 || wasmRes.headers.get("content-type") !== "application/wasm") fail("wasm MIME");
   const missRes = await fetch(new URL("wasm/missing.wasm", baseUrl).toString());
   if (missRes.status !== 404) fail("404");

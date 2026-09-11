@@ -183,7 +183,7 @@ pub fn validate_transform_request(
 }
 
 pub fn build_runtime_info() -> Result<RuntimeInfoDto, AppErrorDto> {
-    let info = poc_core_ffi::get_info()
+    let info = core_ffi::get_info()
         .map_err(|e| AppErrorDto::new("CORE_FAILURE", format!("ffi get_info failed: {e}")))?;
     Ok(RuntimeInfoDto {
         api_version: APPLICATION_API_VERSION,
@@ -199,20 +199,20 @@ pub fn build_runtime_info() -> Result<RuntimeInfoDto, AppErrorDto> {
 
 // Tauri commands。Result<成功DTO, AppError>を返す。
 #[tauri::command]
-pub fn poc_get_info() -> Result<RuntimeInfoDto, AppErrorDto> {
+pub fn core_get_info() -> Result<RuntimeInfoDto, AppErrorDto> {
     build_runtime_info()
 }
 
 #[tauri::command]
-pub fn poc_transform(request: serde_json::Value) -> Result<TransformResultDto, AppErrorDto> {
+pub fn core_transform(request: serde_json::Value) -> Result<TransformResultDto, AppErrorDto> {
     let (values, multiplier, offset) = validate_transform_request(&request)?;
-    let r = poc_core_ffi::transform(&values, multiplier, offset).map_err(|e| {
+    let r = core_ffi::transform(&values, multiplier, offset).map_err(|e| {
         match e {
-            poc_core_ffi::CoreError::LimitExceeded(m) => AppErrorDto::limit(m),
-            poc_core_ffi::CoreError::OutOfMemory(m) => {
+            core_ffi::CoreError::LimitExceeded(m) => AppErrorDto::limit(m),
+            core_ffi::CoreError::OutOfMemory(m) => {
                 AppErrorDto::new("OUT_OF_MEMORY", m)
             }
-            poc_core_ffi::CoreError::CoreFailure(m) => {
+            core_ffi::CoreError::CoreFailure(m) => {
                 AppErrorDto::new("CORE_FAILURE", m)
             }
         }
@@ -221,20 +221,6 @@ pub fn poc_transform(request: serde_json::Value) -> Result<TransformResultDto, A
         values: r.values,
         checksum: r.checksum,
     })
-}
-
-/// バイナリデータプレーンのinvoke版。base64化したwire要求batchを受けて
-/// base64化したwire応答batchを返す。JSON数値配列のparseを避けるための経路で、
-/// 検証・計算・エラー型は `crate::batch::process_batch` に一本化する。
-/// batch内エラーはその時点で打ち切り、単一のAppErrorで返す。
-#[tauri::command]
-pub fn poc_transform_bin(data: String) -> Result<String, AppErrorDto> {
-    use base64::Engine as _;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(data.as_bytes())
-        .map_err(|_| AppErrorDto::invalid("data must be base64".to_string()))?;
-    let out = crate::batch::process_batch(&bytes)?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(&out))
 }
 
 #[cfg(test)]
@@ -322,7 +308,7 @@ mod tests {
     #[test]
     fn transform_end_to_end_basic() {
         let req = json!({"values": [1,2,3], "multiplier": 2, "offset": 1});
-        let r = poc_transform(req).expect("transform");
+        let r = core_transform(req).expect("transform");
         assert_eq!(r.values, vec![3, 5, 7]);
         assert_eq!(r.checksum, 15);
     }

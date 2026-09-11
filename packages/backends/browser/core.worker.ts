@@ -3,7 +3,7 @@
 // DOM、UI状態、ユーザー指定URLは扱わない。
 import { WORKER_PROTOCOL_VERSION } from "./worker-protocol";
 import type { WorkerRequest, WorkerResponse } from "./worker-protocol";
-import { isPocCoreModule, type PocCoreModule } from "./wasm-types";
+import { isCoreModule, type CoreModule } from "./wasm-types";
 import { validateTransformRequest } from "../../api/validation";
 import { appError } from "../../api/errors";
 
@@ -12,7 +12,7 @@ declare const self: DedicatedWorkerGlobalScope;
 type WorkerState = "uninitialized" | "initializing" | "ready" | "failed";
 
 let state: WorkerState = "uninitialized";
-let mod: PocCoreModule | null = null;
+let mod: CoreModule | null = null;
 
 function reply(msg: WorkerResponse): void {
   self.postMessage(msg);
@@ -29,10 +29,10 @@ function failReply(
 // 実ABI検査と版文字列取得の共通化 (init/getInfo)。ABI違いはABI_MISMATCH返信。
 // WASM呼び出しの例外はthrowせず上位handlerのcatchへ任せる (codeが変わるため)。
 type CoreRead = { ok: true; version: string } | { ok: false; abi: number };
-function tryReadCoreInfo(m: PocCoreModule): CoreRead {
-  const abi = m._poc_core_abi_version();
+function tryReadCoreInfo(m: CoreModule): CoreRead {
+  const abi = m._core_abi_version();
   if (abi !== 1) return { ok: false, abi };
-  return { ok: true, version: m.UTF8ToString(m._poc_core_version()) };
+  return { ok: true, version: m.UTF8ToString(m._core_version()) };
 }
 
 function abiMismatchReply(
@@ -70,10 +70,10 @@ export function checkUrls(moduleUrl: unknown, wasmUrl: unknown): string | null {
   if (mu.search !== "" || mu.hash !== "" || wu.search !== "" || wu.hash !== "") {
     return "URLs must not contain query/hash";
   }
-  if (!mu.pathname.endsWith("/wasm/poc-core.mjs")) {
+  if (!mu.pathname.endsWith("/wasm/core.mjs")) {
     return "unexpected module filename";
   }
-  if (!wu.pathname.endsWith("/wasm/poc-core.wasm")) {
+  if (!wu.pathname.endsWith("/wasm/core.wasm")) {
     return "unexpected wasm filename";
   }
   // 同一buildの配下であること (directoryが一致)
@@ -138,7 +138,7 @@ async function handleInit(
         return p;
       },
     });
-    if (!isPocCoreModule(instance)) {
+    if (!isCoreModule(instance)) {
       state = "failed";
       failReply(base, "INITIALIZATION_FAILED", "invalid module exports");
       return;
@@ -243,7 +243,7 @@ async function handleTransform(
 
     let status: number;
     try {
-      status = m._poc_transform_i32(
+      status = m._core_transform_i32(
         count === 0 ? 0 : inPtr,
         count,
         snap.multiplier,

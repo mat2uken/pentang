@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 const appBinaryPath = path.resolve(
-  process.env.PENTANG_TAURI_BINARY ?? "src-tauri/target/debug/poc-app",
+  process.env.PENTANG_TAURI_BINARY ?? "src-tauri/target/debug/core-app",
 );
 
 /**

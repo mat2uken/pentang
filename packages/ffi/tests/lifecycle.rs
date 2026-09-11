@@ -3,7 +3,7 @@
 fn small_input_1000_times() {
     for i in 0..1000 {
         let v = (i % 100) as i32;
-        let r = poc_core_ffi::transform(&[v, v + 1, v + 2], 2, 1)
+        let r = core_ffi::transform(&[v, v + 1, v + 2], 2, 1)
             .expect("transform");
         assert_eq!(r.values.len(), 3);
         assert_eq!(r.values[0], v * 2 + 1);

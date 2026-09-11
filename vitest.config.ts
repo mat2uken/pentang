@@ -18,7 +18,10 @@ export default defineConfig({
         "packages/**/*.d.ts",
         "apps/**/*.d.ts",
         // main.tsは起動結線のみでE2E/実機で検証するため unit 計測から除外する。
-        "apps/poc-demo/main.ts",
+        "apps/demo/main.ts",
+        // bench-runner.tsは計測ハーネス自体で、?bench=1 のE2E/実機で検証する。
+        // 報告先解決などの純粋部品は tests/api/bench-report.test.ts で cover する。
+        "apps/demo/self-test/bench-runner.ts",
         // bench-runner.tsは計測ハーネス自体で、?bench=1 のE2E/実機で検証する。
         // 報告先解決などの純粋部品は tests/api/bench-report.test.ts で cover する。
         "apps/poc-demo/self-test/bench-runner.ts",

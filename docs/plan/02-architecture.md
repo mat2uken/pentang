@@ -15,7 +15,7 @@
                |                            |
         共通Rust commands             Dedicated Worker ×1
                |                            |
-        poc-core-ffi                  Emscripten ES module
+        core-ffi                  Emscripten ES module
                |                            |
              C ABI                        C ABI
                |                            |
@@ -34,7 +34,7 @@ Web実行時にRustやnativeサービスは不要。native WebView内でWASMを�
 | API型・検証 | 型、数値制限、入力のコピー、AppErrorの形 | Tauri / Worker型の公開、変換アルゴリズム |
 | TauriBackend | 入力検証、要求数・タイマー・寿命管理、invoke結果の検査 | C++処理の代替実装、独自OSアダプター |
 | Rust commands | IPC入力を検査しDTOへ変換、FFI呼び出し、エラー整形 | UI状態、emsdkへの依存 |
-| poc-core-ffi | C ABI宣言、配列の確保と寿命、status変換 | Tauriへの依存、raw pointerの公開API化 |
+| core-ffi | C ABI宣言、配列の確保と寿命、status変換 | Tauriへの依存、raw pointerの公開API化 |
 | BrowserBackend | Worker 1個、init、要求と返信の対応、終了処理 | WASM heapへの直接アクセス |
 | Worker | protocol検査、factory初期化、直列実行、heapの確保・コピー・解放 | DOM、UI状態、ユーザー指定URL |
 | C++ | 版情報、int32配列変換、checksum | OS分岐、動的確保、I/O、例外、RTTI、thread、STLコンテナ |
@@ -70,9 +70,9 @@ src/backends/request-state.ts   # 今回の要求だけのpending/timer管理
 src/backends/tauri/index.ts
 src/backends/browser/index.ts / worker-protocol.ts / core.worker.ts / wasm-types.ts
 src/self-test/                  # 画面からも使う試験。通常のtransform実装とは分離
-cpp/include/poc_core.h / cpp/src/core.cpp / cpp/tests/core_test.cpp
+cpp/include/core.h / cpp/src/core.cpp / cpp/tests/core_test.cpp
 CMakeLists.txt
-crates/poc-core-ffi/Cargo.toml / build.rs / src/lib.rs
+crates/core-ffi/Cargo.toml / build.rs / src/lib.rs
 src-tauri/Cargo.toml / build.rs / tauri.conf.json / src/lib.rs / src/main.rs / src/commands.rs
 src-tauri/permissions/ / capabilities/ / gen/android/ / gen/apple/
 tests/fixtures/golden-vectors.json / tests/api/ / tests/web/
@@ -85,9 +85,9 @@ docs/                          # 本計画と固定した元定義
 .github/workflows/             # M5で用意するtarget別CI
 ```
 
-Cargo workspaceのmembersは `src-tauri` と `crates/poc-core-ffi`。FFI単独試験は `cargo test -p poc-core-ffi --locked` で選ぶ。CMakeはC++単体試験用で、製品のC++リンク経路は `cc` に一本化する。
+Cargo workspaceのmembersは `src-tauri` と `crates/core-ffi`。FFI単独試験は `cargo test -p core-ffi --locked` で選ぶ。CMakeはC++単体試験用で、製品のC++リンク経路は `cc` に一本化する。
 
-これは完成時の配置である。M0では存在するsrc-tauriだけをworkspaceに入れ、FFI memberをM1で追加する。初期選択はRust 2024/resolver 3、Tauri package `poc-app`、lib `poc_app_lib`。Node単体試験は専用Vitest config、実Web試験はPlaywright Testと実Safariを使う。採用版はM0のlockで固定する。
+これは完成時の配置である。M0では存在するsrc-tauriだけをworkspaceに入れ、FFI memberをM1で追加する。初期選択はRust 2024/resolver 3、Tauri package `core-app`、lib `core_app_lib`。Node単体試験は専用Vitest config、実Web試験はPlaywright Testと実Safariを使う。採用版はM0のlockで固定する。
 
 ## native / Webのビルド分離
 
@@ -110,10 +110,10 @@ Tauriの独自commandは、既定では全window / WebViewから利用できる�
 
 実装時は次の一組を揃える。
 
-1. `src-tauri/src/lib.rs` の共通runから `poc_get_info / poc_transform / poc_transform_bin` を登録し、`pocbin:` scheme (`/transform`・`/health`) を登録する。desktopの `main.rs` のみに置かない。
-2. `tauri_build::AppManifest::new().commands(&["poc_get_info", "poc_transform", "poc_transform_bin"])` を既存のTauri build処理に組み込む。
-3. `permissions/poc.toml` で `allow-poc-api` を定義し、`commands.allow` はこの3個だけにする。
-4. `capabilities/main-poc.json` は `windows: ["main"]`、`permissions: ["allow-poc-api"]` とし、remote URLを追加しない。`app.security.capabilities` で使用するcapabilityを明示する。
+1. `src-tauri/src/lib.rs` の共通runから `core_get_info / core_transform` を登録し、`corebin:` scheme (`/transform`・`/health`) を登録する。desktopの `main.rs` のみに置かない。
+2. `tauri_build::AppManifest::new().commands(&["core_get_info", "core_transform"])` を既存のTauri build処理に組み込む。
+3. `permissions/poc.toml` で `allow-core-api` を定義し、`commands.allow` はこの2個だけにする。
+4. `capabilities/main-core.json` は `windows: ["main"]`、`permissions: ["allow-core-api"]` とし、remote URLを追加しない。`app.security.capabilities` で使用するcapabilityを明示する。
 5. 不要なdefault capabilityやopener pluginを取り除く。frameworkの追加権限が実際に必要なら、個別権限と理由を記録する。
 6. mainからの成功と、テスト専用の非許可windowからの拒否を実invokeで確認する。テストwindowを通常アプリへ残さない。
 

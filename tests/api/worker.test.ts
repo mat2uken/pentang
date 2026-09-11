@@ -30,8 +30,8 @@ function makeMockModule(overrides: Record<string, unknown> = {}) {
   let nextPtr = 8;
   const allocs = new Map<number, number>();
   return {
-    _poc_core_abi_version: () => 1,
-    _poc_core_version: () => 8,
+    _core_abi_version: () => 1,
+    _core_version: () => 8,
     UTF8ToString: () => "0.1.0",
     HEAP32,
     HEAPU32,
@@ -42,7 +42,7 @@ function makeMockModule(overrides: Record<string, unknown> = {}) {
       return ptr;
     },
     _free: () => {},
-    _poc_transform_i32: (inPtr: number, count: number, mul: number, off: number, outPtr: number, _cap: number, sumPtr: number) => {
+    _core_transform_i32: (inPtr: number, count: number, mul: number, off: number, outPtr: number, _cap: number, sumPtr: number) => {
       // simple JS oracle (not C++): compute with clamp
       const h32 = HEAP32;
       const hu32 = HEAPU32;
@@ -83,16 +83,16 @@ describe("worker pure helpers", () => {
     (globalThis as unknown as { self: unknown }).self = mock as unknown as DedicatedWorkerGlobalScope;
     const mod = await import("../../packages/backends/browser/core.worker");
     const base = "https://example.test";
-    expect(mod.checkUrls(`${base}/wasm/poc-core.mjs`, `${base}/wasm/poc-core.wasm`)).toBeNull();
-    expect(mod.checkUrls(123, `${base}/wasm/poc-core.wasm`)).not.toBeNull();
-    expect(mod.checkUrls(`${base}/wasm/poc-core.mjs`, 123)).not.toBeNull();
-    expect(mod.checkUrls("not-a-url", `${base}/wasm/poc-core.wasm`)).not.toBeNull();
-    expect(mod.checkUrls("https://other.test/wasm/poc-core.mjs", `${base}/wasm/poc-core.wasm`)).not.toBeNull();
-    expect(mod.checkUrls(`${base}/wasm/poc-core.mjs?x=1`, `${base}/wasm/poc-core.wasm`)).not.toBeNull();
-    expect(mod.checkUrls(`${base}/wasm/poc-core.mjs#h`, `${base}/wasm/poc-core.wasm`)).not.toBeNull();
-    expect(mod.checkUrls(`${base}/other/poc-core.mjs`, `${base}/wasm/poc-core.wasm`)).not.toBeNull();
-    expect(mod.checkUrls(`${base}/wasm/poc-core.mjs`, `${base}/other/poc-core.wasm`)).not.toBeNull();
-    expect(mod.checkUrls(`${base}/a/wasm/poc-core.mjs`, `${base}/b/wasm/poc-core.wasm`)).not.toBeNull();
+    expect(mod.checkUrls(`${base}/wasm/core.mjs`, `${base}/wasm/core.wasm`)).toBeNull();
+    expect(mod.checkUrls(123, `${base}/wasm/core.wasm`)).not.toBeNull();
+    expect(mod.checkUrls(`${base}/wasm/core.mjs`, 123)).not.toBeNull();
+    expect(mod.checkUrls("not-a-url", `${base}/wasm/core.wasm`)).not.toBeNull();
+    expect(mod.checkUrls("https://other.test/wasm/core.mjs", `${base}/wasm/core.wasm`)).not.toBeNull();
+    expect(mod.checkUrls(`${base}/wasm/core.mjs?x=1`, `${base}/wasm/core.wasm`)).not.toBeNull();
+    expect(mod.checkUrls(`${base}/wasm/core.mjs#h`, `${base}/wasm/core.wasm`)).not.toBeNull();
+    expect(mod.checkUrls(`${base}/other/bad.mjs`, `${base}/wasm/core.wasm`)).not.toBeNull();
+    expect(mod.checkUrls(`${base}/wasm/core.mjs`, `${base}/other/bad.wasm`)).not.toBeNull();
+    expect(mod.checkUrls(`${base}/a/wasm/core.mjs`, `${base}/b/wasm/core.wasm`)).not.toBeNull();
   });
 });
 
@@ -136,13 +136,13 @@ describe("worker init/getInfo/transform via onmessage", () => {
         // locateFileの両分岐 (wasm解決・素通し) を covering する
         const locate = (opts as { locateFile?: (p: string) => string }).locateFile;
         if (locate) {
-          expect(locate("poc-core.wasm")).toBe("https://example.test/wasm/poc-core.wasm");
+          expect(locate("core.wasm")).toBe("https://example.test/wasm/core.wasm");
           expect(locate("asset.js")).toBe("asset.js");
         }
         return mockModule;
       },
     }));
-    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
     const replies = await waitForReply(selfMock, 1);
     expect((replies[0] as { ok: boolean }).ok).toBe(true);
     expect(mod.__getWorkerStateForTest()).toBe("ready");
@@ -162,9 +162,9 @@ describe("worker init/getInfo/transform via onmessage", () => {
   it("duplicate init rejected", async () => {
     const { mod, selfMock } = await loadWorker();
     mod.__setImporterForTest(async () => ({ default: async () => makeMockModule() }));
-    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
     await waitForReply(selfMock, 1);
-    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
     const replies = await waitForReply(selfMock, 2);
     expect((replies[1] as { ok: boolean }).ok).toBe(false);
   });
@@ -172,7 +172,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
   it("init url error -> failed", async () => {
     const { mod, selfMock } = await loadWorker();
     mod.__setImporterForTest(async () => ({ default: async () => makeMockModule() }));
-    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://evil.test/x.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+    send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://evil.test/x.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
     const replies = await waitForReply(selfMock, 1);
     expect((replies[0] as { ok: boolean }).ok).toBe(false);
     expect(mod.__getWorkerStateForTest()).toBe("failed");
@@ -183,7 +183,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
     {
       const { mod, selfMock } = await loadWorker();
       mod.__setImporterForTest(async () => ({}));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       const r = await waitForReply(selfMock, 1);
       expect((r[0] as { ok: boolean }).ok).toBe(false);
     }
@@ -191,15 +191,15 @@ describe("worker init/getInfo/transform via onmessage", () => {
     {
       const { mod, selfMock } = await loadWorker();
       mod.__setImporterForTest(async () => ({ default: async () => ({}) }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       const r = await waitForReply(selfMock, 1);
       expect((r[0] as { ok: boolean }).ok).toBe(false);
     }
     // ABI mismatch
     {
       const { mod, selfMock } = await loadWorker();
-      mod.__setImporterForTest(async () => ({ default: async () => makeMockModule({ _poc_core_abi_version: () => 999 }) }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      mod.__setImporterForTest(async () => ({ default: async () => makeMockModule({ _core_abi_version: () => 999 }) }));
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       const r = await waitForReply(selfMock, 1);
       const first = r[0] as { ok: boolean; error?: { code: string } };
       expect(first.ok).toBe(false);
@@ -211,7 +211,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
       mod.__setImporterForTest(async () => {
         throw boom;
       });
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       const r = await waitForReply(selfMock, 1);
       expect((r[0] as { ok: boolean }).ok).toBe(false);
     }
@@ -233,13 +233,13 @@ describe("worker init/getInfo/transform via onmessage", () => {
       let calls = 0;
       const mutable = {
         ...m,
-        _poc_core_abi_version: () => {
+        _core_abi_version: () => {
           calls++;
           return calls === 1 ? 1 : 999;
         },
       };
       mod.__setImporterForTest(async () => ({ default: async () => mutable }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "getInfo" });
       const r = await waitForReply(selfMock, 2);
@@ -250,10 +250,10 @@ describe("worker init/getInfo/transform via onmessage", () => {
       const { mod, selfMock } = await loadWorker();
       const good = makeMockModule();
       mod.__setImporterForTest(async () => ({ default: async () => good }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       // stored modを壊して次のabi呼び出しで投げさせる
-      (good as { _poc_core_abi_version: () => number })._poc_core_abi_version = () => {
+      (good as { _core_abi_version: () => number })._core_abi_version = () => {
         throw boom;
       };
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "getInfo" });
@@ -272,7 +272,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
     // ready then invalid
     const { mod: mod2, selfMock: s2 } = await loadWorker();
     mod2.__setImporterForTest(async () => ({ default: async () => makeMockModule() }));
-    send(s2, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+    send(s2, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
     await waitForReply(s2, 1);
     send(s2, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1.5], multiplier: 1, offset: 0 } });
     const r2 = await waitForReply(s2, 2);
@@ -288,7 +288,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
       const { mod, selfMock } = await loadWorker();
       const m = makeMockModule({ _malloc: () => 0 });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1, 2], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);
@@ -305,7 +305,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
         },
       });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1, 2], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);
@@ -323,7 +323,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
         },
       });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);
@@ -333,7 +333,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
     {
       const { mod, selfMock } = await loadWorker();
       mod.__setImporterForTest(async () => ({ default: async () => makeMockModule() }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);
@@ -346,12 +346,12 @@ describe("worker init/getInfo/transform via onmessage", () => {
     for (const boom of [new Error("trap boom"), "trap-string-boom"]) {
       const { mod, selfMock } = await loadWorker();
       const m = makeMockModule({
-        _poc_transform_i32: () => {
+        _core_transform_i32: () => {
           throw boom;
         },
       });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);
@@ -360,9 +360,9 @@ describe("worker init/getInfo/transform via onmessage", () => {
     // non-zero
     {
       const { mod, selfMock } = await loadWorker();
-      const m = makeMockModule({ _poc_transform_i32: () => 5 });
+      const m = makeMockModule({ _core_transform_i32: () => 5 });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);
@@ -377,7 +377,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
         },
       });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);
@@ -398,7 +398,7 @@ describe("worker init/getInfo/transform via onmessage", () => {
         },
       });
       mod.__setImporterForTest(async () => ({ default: async () => m }));
-      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/poc-core.mjs", wasmUrl: "https://example.test/wasm/poc-core.wasm" });
+      send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 1, method: "init", moduleUrl: "https://example.test/wasm/core.mjs", wasmUrl: "https://example.test/wasm/core.wasm" });
       await waitForReply(selfMock, 1);
       send(selfMock, { protocolVersion: WORKER_PROTOCOL_VERSION, id: 2, method: "transform", payload: { values: [1], multiplier: 1, offset: 0 } });
       const r = await waitForReply(selfMock, 2);

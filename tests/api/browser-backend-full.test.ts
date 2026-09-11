@@ -7,7 +7,7 @@ describe("browser-backend full", () => {
   it("init postMessage throws -> TRANSPORT", async () => {
     const worker = makeWorker({ throwOnPost: true });
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+    await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
       code: "TRANSPORT_ERROR",
     });
   });
@@ -17,7 +17,7 @@ describe("browser-backend full", () => {
       onPost: (msg) => ({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: false, error: { code: "CORE_FAILURE", message: "bad" } }),
     });
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+    await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
       code: "TRANSPORT_ERROR",
     });
   });
@@ -27,7 +27,7 @@ describe("browser-backend full", () => {
       onPost: (msg) => ({ protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: msg.method, ok: false, error: { code: "INITIALIZATION_FAILED", message: "bad-init" } }),
     });
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+    await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
       code: "INITIALIZATION_FAILED",
     });
   });
@@ -38,7 +38,7 @@ describe("browser-backend full", () => {
     });
     const b = createBrowserBackendForTest(worker as unknown as Worker);
     // extractCore returns ABI_MISMATCH, init wraps? Actually init checks extractCore and failAll with ABI_MISMATCH then throws it.
-    await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+    await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
       code: "ABI_MISMATCH",
     });
   });
@@ -48,7 +48,7 @@ describe("browser-backend full", () => {
     try {
       const worker = makeWorker({ hangInit: true });
       const b = createBrowserBackendForTest(worker as unknown as Worker, { initTimeoutMs: 50 });
-      const p = b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+      const p = b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
       const guarded = p.catch((e) => e);
       await vi.advanceTimersByTimeAsync(60);
       const err = await guarded;
@@ -62,8 +62,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
       throw new Error("post fail");
@@ -76,8 +76,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
       throw new Error("post fail");
@@ -92,8 +92,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     const p = api.getInfo();
     worker.__emitError();
@@ -106,8 +106,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     const p = api.getInfo();
     worker.__emitMessageError();
@@ -119,8 +119,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     const p = api.getInfo();
     worker.__emitMessage({ protocolVersion: 999, id: 1, method: "getInfo", ok: true, data: { abiVersion: 1, version: "x" } });
@@ -131,7 +131,7 @@ describe("browser-backend full", () => {
   it("stale duplicate reply ignored; method mismatch -> TRANSPORT", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     // successful getInfo then duplicate stale
     const info = await b.getInfo();
     expect(info.core.abiVersion).toBe(1);
@@ -172,7 +172,7 @@ describe("browser-backend full", () => {
       queueMicrotask(() => worker.__emitMessage(data));
     });
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     await expect(b.transform({ values: [1], multiplier: 1, offset: 0 })).rejects.toMatchObject({ code: "OUT_OF_MEMORY" });
     // ready stays
     const info = await b.getInfo();
@@ -184,8 +184,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     // hijack next transform to return wrong length
     (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
@@ -202,8 +202,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
       const data = { protocolVersion: WORKER_PROTOCOL_VERSION, id: msg.id, method: "transform", ok: true, data: { values: [1.5], checksum: 0 } };
@@ -218,7 +218,7 @@ describe("browser-backend full", () => {
   it("nextIdForTest and debugState covered; dispose clears", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     expect(typeof b.nextIdForTest).toBe("number");
     expect(b.debugState().lifecycle).toBe("ready");
     await b.dispose();
@@ -245,7 +245,7 @@ describe("browser-backend full", () => {
         );
       });
       const b = createBrowserBackendForTest(worker as unknown as Worker);
-      await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+      await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
         code: "TRANSPORT_ERROR",
       });
     }
@@ -261,7 +261,7 @@ describe("browser-backend full", () => {
         );
       });
       const b = createBrowserBackendForTest(worker as unknown as Worker);
-      await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+      await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
         code: "ABI_MISMATCH",
       });
     }
@@ -274,7 +274,7 @@ describe("browser-backend full", () => {
         );
       });
       const b = createBrowserBackendForTest(worker as unknown as Worker);
-      await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+      await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
         code: "TRANSPORT_ERROR",
       });
     }
@@ -284,8 +284,8 @@ describe("browser-backend full", () => {
     const worker = makeWorker();
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
       queueMicrotask(() =>
@@ -298,8 +298,8 @@ describe("browser-backend full", () => {
     const worker2 = makeWorker();
     const api2 = await createBrowserBackend({
       workerFactory: () => worker2 as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker2.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
       queueMicrotask(() =>
@@ -313,8 +313,8 @@ describe("browser-backend full", () => {
     const worker3 = makeWorker();
     const api3 = await createBrowserBackend({
       workerFactory: () => worker3 as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     (worker3.postMessage as ReturnType<typeof vi.fn>).mockImplementationOnce((msg: { id: number; method: string }) => {
       queueMicrotask(() =>
@@ -330,7 +330,7 @@ describe("browser-backend full", () => {
   it("post-dispose messages are ignored (failed/disposed guards)", async () => {
     const worker = makeWorker();
     const b = createBrowserBackendForTest(worker as unknown as Worker);
-    await b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     await b.dispose();
     // 壊れた返信・未発行id返信はfailed/disposedガードで無視され、例外にならない
     worker.__emitMessage({ protocolVersion: 999, id: 1, method: "getInfo", ok: true });
@@ -348,7 +348,7 @@ describe("browser-backend full", () => {
     // initのregisterはtry外のためBUSYがそのまま伝播し、failed化しない (再試行可能)。
     const st = (b as unknown as { state: { register(m: string): { id: number; promise: Promise<unknown> } } }).state;
     for (let i = 0; i < 8; i++) st.register("transform").promise.catch(() => {});
-    await expect(b.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm")).rejects.toMatchObject({
+    await expect(b.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm")).rejects.toMatchObject({
       code: "BUSY",
     });
     expect(b.debugState().lifecycle).toBe("creating");

@@ -28,11 +28,11 @@ export interface BrowserBackendDeps {
 
 function buildUrls(): { moduleUrl: string; wasmUrl: string } {
   // UI側で new URL(import.meta.env.BASE_URL, document.baseURI) を基準にする。
-  // baseは / または /poc/ のような末尾slash付きpathに限定する。
+  // baseは / または /core/ のような末尾slash付きpathに限定する。
   const baseEnv = (import.meta.env.BASE_URL as string | undefined) ?? "/";
   const base = new URL(baseEnv, document.baseURI);
-  const moduleUrl = new URL("wasm/poc-core.mjs", base).toString();
-  const wasmUrl = new URL("wasm/poc-core.wasm", base).toString();
+  const moduleUrl = new URL("wasm/core.mjs", base).toString();
+  const wasmUrl = new URL("wasm/core.wasm", base).toString();
   return { moduleUrl, wasmUrl };
 }
 

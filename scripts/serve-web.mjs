@@ -11,7 +11,7 @@ import { parseKVArgs } from "./lib.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function usage() {
-  return `usage: npm run preview:web [-- --base /|/poc/ --port 4173 --host 127.0.0.1 --dist dist/web]`;
+  return `usage: npm run preview:web [-- --base /|/core/ --port 4173 --host 127.0.0.1 --dist dist/web]`;
 }
 
 const { kv } = parseKVArgs(process.argv.slice(2));

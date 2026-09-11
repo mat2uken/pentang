@@ -4,7 +4,6 @@ import {
   createTauriBackendForTest,
   createTauriBackendWithDeps,
 } from "../../packages/backends/tauri/index";
-import { base64Decode, base64Encode } from "../../packages/api/base64";
 import {
   decodeTransformRequest,
   encodeTransformResponse,
@@ -19,27 +18,6 @@ function okInfo() {
     execution: "native-ffi",
     core: { abiVersion: 1, version: "0.1.0" },
   };
-}
-
-// 試験double: wire要求を素直に計算するfakeサーバ (製品計算の置換ではない)。
-async function fakeB64Invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
-  if (cmd === "poc_get_info") return okInfo();
-  if (cmd === "poc_transform_bin") {
-    const dec = base64Decode(args!["data"] as string);
-    if (!dec.ok) throw new Error("bad b64");
-    const d = decodeTransformRequest(dec.bytes);
-    if (!d.ok) throw new Error("bad frame");
-    const vals = valuesToArray(d.valuesBytes, d.count).map((v) => {
-      const r = v * d.multiplier + d.offset;
-      return Math.max(-2147483648, Math.min(2147483647, r));
-    });
-    let sum = 0;
-    for (const v of vals) sum = (sum + (v >>> 0)) >>> 0;
-    const out = new Uint8Array(16 + 8 + vals.length * 4);
-    const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: vals, checksum: sum });
-    return base64Encode(out.slice(0, n));
-  }
-  throw new Error(`unknown ${cmd}`);
 }
 
 function fakeFetchOk(handler: (body: Uint8Array) => Uint8Array) {
@@ -86,18 +64,7 @@ function echoFetch() {
 }
 
 describe("tauri-backend data planes", () => {
-  it("b64 planeで変換成功・応答検証が通る", async () => {
-    const invoke = vi.fn(fakeB64Invoke);
-    const api = await createTauriBackendWithDeps({ invoke, dataPlane: "b64" });
-    expect((api as unknown as { resolvedDataPlane: string }).resolvedDataPlane).toBe("b64");
-    const r = await api.transform({ values: [1, 2, 3], multiplier: 2, offset: 1 });
-    expect([...r.values]).toEqual([3, 5, 7]);
-    expect(r.checksum).toBe(15);
-    expect(invoke).toHaveBeenCalledWith("poc_transform_bin", expect.anything());
-    await api.dispose();
-  });
-
-  it("scheme planeで変換成功・fetch先がpocbin", async () => {
+  it("scheme planeで変換成功・fetch先がcorebin", async () => {
     const fetchFn = echoFetch();
     const invoke = vi.fn(async () => okInfo());
     const api = await createTauriBackendWithDeps({ invoke, dataPlane: "scheme", fetchFn });
@@ -107,77 +74,16 @@ describe("tauri-backend data planes", () => {
     const transformCall = fetchFn.mock.calls.find(([url]) =>
       (url as string).endsWith("/transform"),
     ) as [string, unknown];
-    expect(transformCall[0]).toBe("pocbin://localhost/transform");
+    expect(transformCall[0]).toBe("corebin://localhost/transform");
     // getInfoは制御プレーン (JSON invoke) のまま
     await api.getInfo();
-    expect(invoke).toHaveBeenCalledWith("poc_get_info");
+    expect(invoke).toHaveBeenCalledWith("core_get_info");
     await api.dispose();
   });
 
-  it("auto: GET迂回のみの環境では単発最速のb64を選ぶ (Android相当)", async () => {
+  it("auto: scheme不達のAndroid相当ではjsonへfallback", async () => {
     const seen: string[] = [];
-    // Rust schemeハンドラ相当: POST body / GETクエリの両方を受け付ける。
-    // Android相当として pocbin: URL自体は到達不能にする。
-    const androidLike = vi.fn(
-      async (
-        url: string,
-        init?: { method?: string; body?: Uint8Array },
-      ): Promise<{
-        readonly status: number;
-        readonly ok: boolean;
-        arrayBuffer(): Promise<ArrayBuffer>;
-        text(): Promise<string>;
-      }> => {
-        seen.push(url);
-        if (url.startsWith("pocbin:")) throw new Error("Failed to fetch");
-        const fail = (status: number, code: string, message: string) => ({
-          status,
-          ok: false as boolean,
-          arrayBuffer: async () => new ArrayBuffer(0),
-          text: async () => JSON.stringify({ code, message }),
-        });
-        let reqBytes: Uint8Array | null = null;
-        if ((init?.method ?? "GET") === "GET") {
-          const q = url.split("?", 2)[1] ?? "";
-          const pair = q.split("&").find((p) => p.startsWith("data="));
-          if (pair === undefined) return fail(400, "INVALID_ARGUMENT", "missing data");
-          const std = pair.slice(5).replace(/-/g, "+").replace(/_/g, "/");
-          const padded = std + "=".repeat((4 - (std.length % 4)) % 4);
-          const dec = base64Decode(padded);
-          if (!dec.ok) return fail(400, "INVALID_ARGUMENT", "bad base64url");
-          reqBytes = dec.bytes;
-        } else {
-          reqBytes = init?.body ?? new Uint8Array(0);
-        }
-        const d = decodeTransformRequest(reqBytes);
-        if (!d.ok) return fail(400, "INVALID_ARGUMENT", "bad frame");
-        const vals = valuesToArray(d.valuesBytes, d.count).map((v) => v * d.multiplier + d.offset);
-        let sum = 0;
-        for (const v of vals) sum = (sum + (v >>> 0)) >>> 0;
-        const out = new Uint8Array(16 + 8 + vals.length * 4);
-        const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: vals, checksum: sum });
-        const body = out.slice(0, n);
-        const buf = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
-        return {
-          status: 200,
-          ok: true,
-          arrayBuffer: async () => buf as ArrayBuffer,
-          text: async () => new TextDecoder().decode(body),
-        };
-      },
-    );
-    const invoke = vi.fn(fakeB64Invoke);
-    const api = await createTauriBackendWithDeps({ invoke, dataPlane: "auto", fetchFn: androidLike });
-    expect((api as unknown as { resolvedDataPlane: string }).resolvedDataPlane).toBe("b64");
-    const r = await api.transform({ values: [1, 2, 3], multiplier: 2, offset: 1 });
-    expect([...r.values]).toEqual([3, 5, 7]);
-    expect(r.checksum).toBe(15);
-    expect(invoke).toHaveBeenCalledWith("poc_transform_bin", expect.anything());
-    await api.dispose();
-  });
-
-  it("scheme明示: GET迂回URLにpin留めして変換する", async () => {
-    const seen: string[] = [];
+    // corebin: 自体が到達不能 (Android WebView相当)。POST probeのみ行う。
     const androidLike = vi.fn(
       async (
         url: string,
@@ -189,43 +95,37 @@ describe("tauri-backend data planes", () => {
         text(): Promise<string>;
       }> => {
         seen.push(url);
-        if (url.startsWith("pocbin:")) throw new Error("Failed to fetch");
-        const q = url.split("?", 2)[1] ?? "";
-        const pair = q.split("&").find((p) => p.startsWith("data="));
-        if (pair === undefined) {
-          return { status: 400, ok: false, arrayBuffer: async () => new ArrayBuffer(0), text: async () => "{}" };
-        }
-        const std = pair.slice(5).replace(/-/g, "+").replace(/_/g, "/");
-        const padded = std + "=".repeat((4 - (std.length % 4)) % 4);
-        const dec = base64Decode(padded);
-        if (!dec.ok) throw new Error("bad base64url");
-        const d = decodeTransformRequest(dec.bytes);
-        if (!d.ok) throw new Error("bad frame");
-        const vals = valuesToArray(d.valuesBytes, d.count).map((v) => v * d.multiplier + d.offset);
-        let sum = 0;
-        for (const v of vals) sum = (sum + (v >>> 0)) >>> 0;
-        const out = new Uint8Array(16 + 8 + vals.length * 4);
-        const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: vals, checksum: sum });
-        const body = out.slice(0, n);
-        const buf = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
-        return {
-          status: 200,
-          ok: true,
-          arrayBuffer: async () => buf as ArrayBuffer,
-          text: async () => new TextDecoder().decode(body),
-        };
+        throw new Error("Failed to fetch");
       },
     );
-    const invoke = vi.fn(async () => okInfo());
-    const api = await createTauriBackendWithDeps({ invoke, dataPlane: "scheme", fetchFn: androidLike });
-    expect((api as unknown as { resolvedDataPlane: string }).resolvedDataPlane).toBe("scheme");
+    const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "core_get_info") return okInfo();
+      if (cmd === "core_transform") {
+        const req = (args as { request: { values: number[]; multiplier: number; offset: number } }).request;
+        const values = req.values.map((v) => v * req.multiplier + req.offset);
+        let sum = 0;
+        for (const v of values) sum = (sum + (v >>> 0)) >>> 0;
+        return { values, checksum: sum };
+      }
+      throw new Error(`unknown ${cmd}`);
+    });
+    const api = await createTauriBackendWithDeps({ invoke, dataPlane: "auto", fetchFn: androidLike });
+    expect((api as unknown as { resolvedDataPlane: string }).resolvedDataPlane).toBe("json");
     const r = await api.transform({ values: [1, 2, 3], multiplier: 2, offset: 1 });
     expect([...r.values]).toEqual([3, 5, 7]);
     expect(r.checksum).toBe(15);
-    // transform送信自体もGETクエリ運搬になっていること。
-    const sends = seen.filter((u) => u.startsWith("http://pocbin.localhost/transform?data="));
-    expect(sends.length).toBeGreaterThan(0);
+    // probeはcorebin:// POSTのみで、迂回URLへは行かない。
+    expect(seen).toEqual(["corebin://localhost/transform"]);
     await api.dispose();
+  });
+
+  it("scheme明示: 不達なら初期化失敗", async () => {
+    const androidLike = vi.fn(async () => {
+      throw new Error("Failed to fetch");
+    });
+    const invoke = vi.fn(async () => okInfo());
+    const backend = createTauriBackendForTest({ invoke, dataPlane: "scheme", fetchFn: androidLike });
+    await expect(backend.init()).rejects.toMatchObject({ code: "INITIALIZATION_FAILED" });
   });
 
   it("auto: 到達可ならscheme、不可ならjsonへfallback", async () => {
@@ -235,8 +135,8 @@ describe("tauri-backend data planes", () => {
     await api1.dispose();
 
     const invoke2 = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
-      if (cmd === "poc_get_info") return okInfo();
-      if (cmd === "poc_transform") {
+      if (cmd === "core_get_info") return okInfo();
+      if (cmd === "core_transform") {
         const req = (args as { request: { values: number[] } }).request;
         return { values: req.values, checksum: 0 };
       }
@@ -320,7 +220,7 @@ describe("tauri-backend data planes", () => {
 
   it("既定はjson (既存動作不変)", async () => {
     const invoke = vi.fn(async (cmd: string) => {
-      if (cmd === "poc_get_info") return okInfo();
+      if (cmd === "core_get_info") return okInfo();
       throw new Error("must not be called");
     });
     const backend = createTauriBackendForTest({ invoke });
@@ -361,5 +261,83 @@ describe("tauri-backend data planes", () => {
     await expect(createBackend()).rejects.toMatchObject({
       code: "TRANSPORT_ERROR",
     });
+  });
+
+  it("port planeで変換成功・応答検証が通る", async () => {
+    let handler: ((ev: { data: unknown }) => void) | null = null;
+    const port = {
+      postMessage: (message: unknown) => {
+        const bytes = message instanceof ArrayBuffer ? new Uint8Array(message) : new Uint8Array(0);
+        const d = decodeTransformRequest(bytes);
+        if (!d.ok) throw new Error("bad frame");
+        const vals = valuesToArray(d.valuesBytes, d.count).map((v) => v * d.multiplier + d.offset);
+        let sum = 0;
+        for (const v of vals) sum = (sum + (v >>> 0)) >>> 0;
+        const out = new Uint8Array(16 + 8 + vals.length * 4);
+        const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: vals, checksum: sum });
+        const resp = out.slice(0, n);
+        queueMicrotask(() => handler?.({ data: resp.buffer as ArrayBuffer }));
+      },
+      addEventListener: (_t: string, l: (ev: { data: unknown }) => void) => {
+        handler = l;
+      },
+    };
+    const g = globalThis as Record<string, unknown>;
+    const invoke = vi.fn(async () => okInfo());
+    try {
+      g["corebin"] = port;
+      const api = await createTauriBackendWithDeps({ invoke, dataPlane: "port" });
+      expect((api as unknown as { resolvedDataPlane: string }).resolvedDataPlane).toBe("port");
+      const r = await api.transform({ values: [1, 2, 3], multiplier: 2, offset: 1 });
+      expect([...r.values]).toEqual([3, 5, 7]);
+      expect(r.checksum).toBe(15);
+      // 生Port経路ではinvoke変換を使わない。
+      expect(invoke).toHaveBeenCalledTimes(1);
+      await api.dispose();
+    } finally {
+      delete g["corebin"];
+    }
+  });
+
+  it("port明示でhook欠落なら初期化失敗", async () => {
+    const invoke = vi.fn(async () => okInfo());
+    const backend = createTauriBackendForTest({ invoke, dataPlane: "port" });
+    await expect(backend.init()).rejects.toMatchObject({ code: "INITIALIZATION_FAILED" });
+  });
+
+  it("autoは生Portを最優先する (fetch不要)", async () => {
+    let handler: ((ev: { data: unknown }) => void) | null = null;
+    const port = {
+      postMessage: (message: unknown) => {
+        const bytes = message instanceof ArrayBuffer ? new Uint8Array(message) : new Uint8Array(0);
+        const d = decodeTransformRequest(bytes);
+        if (!d.ok) throw new Error("bad frame");
+        const out = new Uint8Array(16 + 8);
+        const n = encodeTransformResponse(out, 0, { sequence: d.sequence, values: [], checksum: 0 });
+        const resp = out.slice(0, n);
+        queueMicrotask(() => handler?.({ data: resp.buffer as ArrayBuffer }));
+      },
+      addEventListener: (_t: string, l: (ev: { data: unknown }) => void) => {
+        handler = l;
+      },
+    };
+    const g = globalThis as Record<string, unknown>;
+    const invoke = vi.fn(async () => okInfo());
+    const downFetch = vi.fn(async () => {
+      throw new Error("network down");
+    });
+    try {
+      g["corebin"] = port;
+      const api = await createTauriBackendWithDeps({ invoke, dataPlane: "auto", fetchFn: downFetch });
+      expect((api as unknown as { resolvedDataPlane: string }).resolvedDataPlane).toBe("port");
+      const r = await api.transform({ values: [], multiplier: 1, offset: 0 });
+      expect([...r.values]).toEqual([]);
+      expect(r.checksum).toBe(0);
+      // fetch側は一切触らない。
+      expect(downFetch).not.toHaveBeenCalled();
+      await api.dispose();
+    } finally {
+      delete g["corebin"];
+    }
   });
 });

@@ -12,8 +12,7 @@
  * - webkit-ipc (macOS/iOS WKWebView): 1回 (プロセス間IPC転送のみ)
  * - android-port (WebMessagePort): 1回 (Binder/IPC転送のみ)
  * - webkit-extension (Linux 同一プロセス): 0回 (直ポインタ)
- * - tauri-invoke (JSON 既存): テキスト変換ありの基準経路
- * - invoke-b64 (Tauri内バイナリ): base64の33%増だがJSON数値parseなし
+ * - tauri-invoke (JSON 既存): テキスト変換ありの基準経路・単一fallback
  * - scheme-binary (Tauri内raw binary): fetch+custom schemeで生バイト1コピー
  * - worker-message (Web の Dedicated Worker): transferable で所有権移転
  *
@@ -27,7 +26,6 @@ export type TransportKind =
   | "android-port"
   | "webkit-extension"
   | "tauri-invoke"
-  | "invoke-b64"
   | "scheme-binary"
   | "worker-message";
 
@@ -61,11 +59,11 @@ export const TRANSPORT_CAPS: Record<TransportKind, TransportCaps> = {
   },
   "android-port": {
     kind: "android-port",
-    copies: 1,
+    copies: 2,
     zeroCopy: false,
     maxBatchBytes: 1 << 20,
     supportsBatch: true,
-    description: "Android WebMessagePort binary (Binder転送のみ1コピー)",
+    description: "Android WebMessagePort binary (構造化クローン往復2コピー+Binder)",
   },
   "webkit-extension": {
     kind: "webkit-extension",
@@ -83,21 +81,13 @@ export const TRANSPORT_CAPS: Record<TransportKind, TransportCaps> = {
     supportsBatch: false,
     description: "Tauri invoke JSON (既存・基準経路)",
   },
-  "invoke-b64": {
-    kind: "invoke-b64",
-    copies: 2,
-    zeroCopy: false,
-    maxBatchBytes: 4 << 20,
-    supportsBatch: true,
-    description: "Tauri invoke base64 wire batch (JSON数値parseなし)",
-  },
   "scheme-binary": {
     kind: "scheme-binary",
     copies: 1,
     zeroCopy: false,
     maxBatchBytes: 4 << 20,
     supportsBatch: true,
-    description: "pocbin: scheme fetch raw binary (生バイト1コピー)",
+    description: "corebin: scheme fetch raw binary (生バイト1コピー)",
   },
   "worker-message": {
     kind: "worker-message",
@@ -118,6 +108,38 @@ export interface BridgeTransport {
 
 /** 生のバイトパイプ (ネイティブ送受信の実体)。各 OS 実装に注入する。 */
 export type BytePipe = (outbound: Uint8Array) => Promise<Uint8Array>;
+
+/** 生MessagePortの最小契約 (WebView組み込み・Worker両対応)。 */
+export interface RawMessagePort {
+  postMessage(message: unknown, transfer?: ArrayBuffer[]): void;
+  addEventListener(type: string, listener: (ev: { readonly data: unknown }) => void): void;
+}
+
+/** ネイティブ公開の `window.corebin` を安全に取得する。なければ null。 */
+export function getCorebinPort(): RawMessagePort | null {
+  try {
+    const w = globalThis as Record<string, unknown>;
+    const win = (w["window"] ?? w) as Record<string, unknown>;
+    const port = win["corebin"] as
+      | {
+          postMessage?: unknown;
+          addEventListener?: unknown;
+        }
+      | null
+      | undefined;
+    if (
+      port !== null &&
+      typeof port === "object" &&
+      typeof port.postMessage === "function" &&
+      typeof port.addEventListener === "function"
+    ) {
+      return port as RawMessagePort;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /** 検出用の環境スナップショット。試験ではこの値を直接組み立てる。 */
 export interface TransportEnv {
@@ -150,11 +172,13 @@ export function collectEnv(): TransportEnv {
   const hasTauri = readGlobal(["__TAURI_INTERNALS__"]) !== undefined;
   // 将来の native plugin が公開する hook (現状未実装時は undefined → fallback)。
   // chrome.webview の有無だけでは SharedBuffer 可用性を意味しないため見ない。
-  const hasWebView2Shared = readGlobal(["__POC_SHARED_BUFFER__"]) !== undefined;
+  const hasWebView2Shared = readGlobal(["__CORE_SHARED_BUFFER__"]) !== undefined;
   const hasWebKitHandler =
-    readGlobal(["webkit", "messageHandlers", "pocBinary"]) !== undefined;
-  const hasAndroidPort = readGlobal(["__POC_MESSAGE_PORT__"]) !== undefined;
-  const hasLinuxDirect = readGlobal(["__POC_DIRECT_BRIDGE__"]) !== undefined;
+    readGlobal(["webkit", "messageHandlers", "coreBinary"]) !== undefined;
+  // Androidネイティブ公開 (`window.corebin`) または将来hookのいずれか。
+  const hasAndroidPort =
+    getCorebinPort() !== null || readGlobal(["__CORE_MESSAGE_PORT__"]) !== undefined;
+  const hasLinuxDirect = readGlobal(["__CORE_DIRECT_BRIDGE__"]) !== undefined;
   return {
     hasTauri,
     hasWebView2Shared,

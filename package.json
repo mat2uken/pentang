@@ -1,5 +1,5 @@
 {
-  "name": "poc-app",
+  "name": "core-app",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -32,7 +32,7 @@
     "lab:report": "node scripts/lab.mjs report",
     "test:lab": "vitest run --config vitest.config.ts tests/api/lab-core.test.ts",
     "bench:ipc": "node --expose-gc scripts/bench/bench-ipc.mjs",
-    "bench:rust": "cargo test --release --offline -p poc-app --lib bench_ipc_paths -- --nocapture"
+    "bench:rust": "cargo test --release --offline -p core-app --lib bench_ipc_paths -- --nocapture"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1"

@@ -24,12 +24,12 @@ describe("validation lab core", () => {
   });
 
   it("classifies affected paths and selects the smallest required profiles", () => {
-    const classification = classifyChangedFiles(["apps/poc-demo/ui.ts", "tests/tauri/basic.e2e.mjs"]);
+    const classification = classifyChangedFiles(["apps/demo/ui.ts", "tests/tauri/basic.e2e.mjs"]);
     expect(classification.code).toBe(true);
     expect(classification.web).toBe(true);
     expect(classification.native).toBe(true);
     expect(selectProfiles({ profile: "affected", changedFiles: ["docs/README.md"] })).toEqual(["fast"]);
-    expect(selectProfiles({ profile: "affected", changedFiles: ["apps/poc-demo/ui.ts"] })).toEqual(["fast", "web", "packaged"]);
+    expect(selectProfiles({ profile: "affected", changedFiles: ["apps/demo/ui.ts"] })).toEqual(["fast", "web", "packaged"]);
     expect(selectProfiles({ profile: "affected", changedFiles: ["scripts/verify-android-device.mjs"] })).toEqual(["fast", "web", "devices"]);
     expect(selectProfiles({ profile: "devices" })).toEqual(["devices"]);
   });

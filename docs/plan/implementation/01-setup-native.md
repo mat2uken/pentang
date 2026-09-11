@@ -95,7 +95,7 @@ npm exec -- vite preview --mode web
 <a id="m1-02"></a>
 ## M1-02 — Cargo workspaceとsafe FFI
 
-**依存:** M1-01。**編集先:** `crates/poc-core-ffi/{Cargo.toml,build.rs,src/lib.rs,tests/golden.rs}`、root Cargo設定。
+**依存:** M1-01。**編集先:** `packages/ffi/{Cargo.toml,build.rs,src/lib.rs,tests/golden.rs}`、root Cargo設定。
 
 1. workspaceにFFI crateを追加し、Tauri非依存にする。C ABI宣言はprivateな `unsafe extern "C"` にまとめる。
 2. build.rsは同じcore.cppをC++17でコンパイルする。`CARGO_MANIFEST_DIR / TARGET / OUT_DIR` を使用し、header/sourceの再ビルド条件を設定する。compiler/SDK引数をverboseログで確認する。
@@ -104,8 +104,8 @@ npm exec -- vite preview --mode web
 5. golden.rsはrepositoryの単一fixtureを実行時/compile時に参照し、同じJSONの別コピーを持たない。生成4096ケースも展開する。
 
 ```sh
-cargo test -p poc-core-ffi --locked
-cargo build -p poc-core-ffi --locked -vv
+cargo test -p core-ffi --locked
+cargo build -p core-ffi --locked -vv
 ```
 
 **確認:** C-01〜C-03のFFI分、header/source変更で再compile、最終リンク。**失敗時:** Rust宣言と固定幅、count/capacity、ccのtargetを確認。**終了:** unsafeをprivateに封じ、C++から返った予期しないstatusをCORE_FAILUREとして扱える。成果物hashを記録する。
@@ -115,14 +115,14 @@ cargo build -p poc-core-ffi --locked -vv
 
 **依存:** M1-02。**編集先:** `src-tauri/src/commands.rs`、`src/lib.rs`、Cargo依存、Tauri build.rs/permissions/capabilities。
 
-1. `commands.rs` にIPC DTO、validation、エラー変換を置く。package名を `poc-app` とし、shared libのrunから2commandを登録する。
-2. `poc_get_info` は実FFIの版情報から完全なRuntimeInfo形を返す。`poc_transform` は `request: serde_json::Value` を検査してFFIへ渡す。JSON field、null、1.0等の扱いは [04](../04-contracts.md) に合わせる。
+1. `commands.rs` にIPC DTO、validation、エラー変換を置く。package名を `core-app` とし、shared libのrunから2commandを登録する。
+2. `core_get_info` は実FFIの版情報から完全なRuntimeInfo形を返す。`core_transform` は `request: serde_json::Value` を検査してFFIへ渡す。JSON field、null、1.0等の扱いは [04](../04-contracts.md) に合わせる。
 3. Rustの応答は `#[serde(rename_all = "camelCase")]` 等で公開field名に揃える。AppError codeは大文字の指定文字列、messageは説明用とする。C++計算をRustへ再実装しない。
-4. `AppManifest::commands`、`allow-poc-api`、mainのcapabilityを**command公開と同時に**導入する。M3まで無制限公開を残す手順にしない。
+4. `AppManifest::commands`、`allow-core-api`、mainのcapabilityを**command公開と同時に**導入する。M3まで無制限公開を残す手順にしない。
 5. DTO/validation/serializationのRust試験を追加する。外側のIPC引数欠落はTauriの拒否、内側のrequest不正はAppErrorと分ける。
 
 ```sh
-cargo test -p poc-app --lib --locked
+cargo test -p core-app --lib --locked
 npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app
 ```
 

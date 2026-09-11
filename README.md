@@ -6,7 +6,7 @@
 
 - `packages/` — ライブラリ (ビルド・利用する部分)。詳細は [packages/README.md](packages/README.md)
   - `core/` C++ 共通コア / `ffi/` Rust FFI 共通 / `api/` TS 共通 API / `backends/` 共有 + プラットフォーム別 (browser / tauri)
-- `apps/poc-demo/` + `src-tauri/` + `index.html` — デモアプリ (ライブラリ利用側の PoC デモ: UI・ネイティブシェル)。製品コードではない。詳細は [apps/README.md](apps/README.md)
+- `apps/demo/` + `src-tauri/` + `index.html` — デモアプリ (ライブラリ利用側の PoC デモ: UI・ネイティブシェル)。製品コードではない。詳細は [apps/README.md](apps/README.md)
 - `docs/` — ドキュメント集約 (計画・仕様・調査結果・検証記録・E2E)。詳細は [docs/README.md](docs/README.md)
 - `scripts/` / `tests/api/` — ビルド・検証ツールとライブラリ単体試験
 - `tsconfig/` — 用途別 TypeScript 設定 (束ねはルート `tsconfig.json`)。詳細は [tsconfig/README.md](tsconfig/README.md)
@@ -19,7 +19,7 @@
   npm ci
   npm run doctor -- --target <web|native|android|ios> --phase <tools|build|run>
   ```
-- 型検査・試験: `npm run typecheck -- --scope all` / `npm run test:api` / `npm run test:core` / `cargo test -p poc-core-ffi --locked`
+- 型検査・試験: `npm run typecheck -- --scope all` / `npm run test:api` / `npm run test:core` / `cargo test -p core-ffi --locked`
 - Web (emsdk 6.0.9 を有効化して実行): `npm run build:web -- --base /` → `npm run preview:web`
 - macOS native: `npm run tauri -- build --debug --target aarch64-apple-darwin --bundles app`
 - 開発配信: `npm run dev:web` (Web) / `npm run dev:native-ui` (Native UI)

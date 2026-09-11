@@ -14,8 +14,8 @@ describe("browser-backend", () => {
     const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     const info = await api.getInfo();
     expect(info.backend).toBe("wasm-worker");
@@ -34,8 +34,8 @@ describe("browser-backend", () => {
     const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     const before = (worker.postMessage as ReturnType<typeof vi.fn>).mock.calls.length;
     await expect(api.transform({ values: [1.5], multiplier: 1, offset: 0 })).rejects.toMatchObject({
@@ -50,8 +50,8 @@ describe("browser-backend", () => {
     const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     const p = api.getInfo();
     // 未発行idの返信を注入
@@ -66,8 +66,8 @@ describe("browser-backend", () => {
     const { createBrowserBackend } = await import("../../packages/backends/browser/index");
     const api = await createBrowserBackend({
       workerFactory: () => worker as unknown as Worker,
-      moduleUrl: "https://example.test/wasm/poc-core.mjs",
-      wasmUrl: "https://example.test/wasm/poc-core.wasm",
+      moduleUrl: "https://example.test/wasm/core.mjs",
+      wasmUrl: "https://example.test/wasm/core.wasm",
     });
     await api.dispose();
     await api.dispose();
@@ -99,7 +99,7 @@ describe("browser-backend", () => {
       },
     });
     const backend = createBrowserBackendForTest(worker as unknown as Worker);
-    await backend.init("https://example.test/wasm/poc-core.mjs", "https://example.test/wasm/poc-core.wasm");
+    await backend.init("https://example.test/wasm/core.mjs", "https://example.test/wasm/core.wasm");
     // 検証済みの正しい入力でもWorkerがINVALIDを返せば当該要求だけ失敗しready維持
     await expect(backend.transform({ values: [1], multiplier: 1, offset: 0 })).rejects.toMatchObject({
       code: "INVALID_ARGUMENT",

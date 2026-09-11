@@ -49,8 +49,8 @@ function callWorker(
 async function main(): Promise<void> {
   out.textContent = "running...";
   const base = new URL(import.meta.env.BASE_URL, document.baseURI);
-  const moduleUrl = new URL("wasm/poc-core.mjs", base).toString();
-  const wasmUrl = new URL("wasm/poc-core.wasm", base).toString();
+  const moduleUrl = new URL("wasm/core.mjs", base).toString();
+  const wasmUrl = new URL("wasm/core.wasm", base).toString();
   log(`moduleUrl=${moduleUrl}`);
   log(`wasmUrl=${wasmUrl}`);
   const worker = new Worker(new URL("../../packages/backends/browser/core.worker.ts", import.meta.url), {

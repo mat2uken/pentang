@@ -1,6 +1,6 @@
 /** 共通バイナリ電文プロトコル (Wire Format v1) の TypeScript 実装。
  *
- * `packages/core/include/poc_wire.h` および `packages/ffi/src/wire.rs` と
+ * `packages/core/include/core_wire.h` および `packages/ffi/src/wire.rs` と
  * バイト単位で一致させる。DOM / Tauri / Worker 型に依存しないため、
  * main・Worker・Node 試験のいずれからも import できる。
  *

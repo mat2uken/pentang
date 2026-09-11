@@ -638,8 +638,8 @@ async function runProfile(run, profile, options) {
       ["typecheck", "npm", ["run", "typecheck", "--", "--scope", "all"], 180000],
       ["api-tests", "npm", ["run", "test:api"], 180000],
       ["core-tests", "npm", ["run", "test:core"], 180000],
-      ["ffi-tests", "cargo", ["test", "-p", "poc-core-ffi", "--locked"], 300000],
-      ["app-tests", "cargo", ["test", "-p", "poc-app", "--lib", "--locked"], 300000],
+      ["ffi-tests", "cargo", ["test", "-p", "core-ffi", "--locked"], 300000],
+      ["app-tests", "cargo", ["test", "-p", "core-app", "--lib", "--locked"], 300000],
     ];
     for (const [id, command, args, timeout] of commands) {
       const result = await step(id, command, args, {}, timeout);
@@ -683,10 +683,10 @@ async function runProfile(run, profile, options) {
       const build = await step("native-packaged-build", npmCommand(), ["run", "tauri", "--", "build", "--debug", "--no-bundle", "--target", "aarch64-apple-darwin"], { VITE_WDIO: "1" }, 900000);
       if (build.code === 0) {
         const candidates = [
-          path.join(ROOT, "src-tauri", "target", "aarch64-apple-darwin", "debug", "poc-app"),
-          path.join(ROOT, "src-tauri", "target", "debug", "poc-app"),
-          path.join(ROOT, "target", "aarch64-apple-darwin", "debug", "poc-app"),
-          path.join(ROOT, "target", "debug", "poc-app"),
+          path.join(ROOT, "src-tauri", "target", "aarch64-apple-darwin", "debug", "core-app"),
+          path.join(ROOT, "src-tauri", "target", "debug", "core-app"),
+          path.join(ROOT, "target", "aarch64-apple-darwin", "debug", "core-app"),
+          path.join(ROOT, "target", "debug", "core-app"),
         ];
         const binary = candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
         if (!binary) {

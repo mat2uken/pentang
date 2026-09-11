@@ -38,7 +38,7 @@ run phaseのdoctorは `--artifact` を必須とし、Webに `--url`、mobileに 
 
 ## NativeのC++ビルド
 
-`crates/poc-core-ffi/build.rs` は `CARGO_MANIFEST_DIR` からsource/headerの絶対pathを組み立て、`cc` でC++17としてコンパイルし、Cargoの `OUT_DIR` へ出す。header/sourceの `rerun-if-changed` を出す。`.cpp(true)` 等の具体APIは固定したcc版で確認する。[cc公式](https://docs.rs/cc/latest/cc/)
+`crates/core-ffi/build.rs` は `CARGO_MANIFEST_DIR` からsource/headerの絶対pathを組み立て、`cc` でC++17としてコンパイルし、Cargoの `OUT_DIR` へ出す。header/sourceの `rerun-if-changed` を出す。`.cpp(true)` 等の具体APIは固定したcc版で確認する。[cc公式](https://docs.rs/cc/latest/cc/)
 
 重要なのは実際のtarget / sysroot / deployment targetと最終リンクである。Appleではホスト上のclangもクロスコンパイルに使うため、「HOSTとTARGETが異なるのにホストのclangだから不正」と判定しない。compiler引数と生成objectのCPU・OSを調べる。
 
@@ -61,12 +61,12 @@ AndroidはNDKのclang++にtriple/APIを渡すか、triple/API付きdriverを用�
 cpp/src/core.cpp
 -I cpp/include
 -std=c++17 -O2 -fno-exceptions -fno-rtti --no-entry
--sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createPocCore -sENVIRONMENT=worker
+-sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createCore -sENVIRONMENT=worker
 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=67108864 -sABORTING_MALLOC=0
 -sFILESYSTEM=0 -sDYNAMIC_EXECUTION=0
--sEXPORTED_FUNCTIONS=["_poc_core_abi_version","_poc_core_version","_poc_transform_i32","_malloc","_free"]
+-sEXPORTED_FUNCTIONS=["_core_abi_version","_core_version","_core_transform_i32","_malloc","_free"]
 -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","HEAP32","HEAPU32"]
--o web-public/wasm/poc-core.mjs
+-o web-public/wasm/core.mjs
 ```
 
 固定版でfactory、全exports、heap viewを実際に使えることを確認する。初期memory 16MiB、最大64MiBとし、`ABORTING_MALLOC=0` は確保失敗時の0返却を明示する。通常のMODULARIZEを使い、実験的instance方式、Embind、Asyncify、MEMORY64、pthread、SIMDは導入しない。[設定リファレンス](https://emscripten.org/docs/tools_reference/settings_reference.html)、[module出力](https://emscripten.org/docs/compiling/Modularized-Output.html)
@@ -75,7 +75,7 @@ emsdkのinstall/activateは具体的なversionで行う。有効化済み環境�
 
 ## WebのURLと配信
 
-UI側で `new URL(import.meta.env.BASE_URL, document.baseURI)` を基準に、`wasm/poc-core.mjs` と `wasm/poc-core.wasm` の同一origin URLを作ってWorker initへ渡す。baseは `/` または `/poc/` のような末尾slash付きpathに限定する。
+UI側で `new URL(import.meta.env.BASE_URL, document.baseURI)` を基準に、`wasm/core.mjs` と `wasm/core.wasm` の同一origin URLを作ってWorker initへ渡す。baseは `/` または `/poc/` のような末尾slash付きpathに限定する。
 
 Workerは `import(/* @vite-ignore */ moduleUrl)` のdefault factoryをawaitし、`locateFile` で同一buildのwasmUrlを返す。Emscripten glueを飛ばしてwasm単体を自己流ロードしない。Vite baseによるpath書換えとpublicファイルの参照方法を確認する。[Vite build](https://vite.dev/guide/build#public-base-path)
 

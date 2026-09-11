@@ -1,8 +1,8 @@
 // 手書きの小さなWASM型。生成物なしの型検査を可能にする。
-export interface PocCoreModule {
-  _poc_core_abi_version(): number;
-  _poc_core_version(): number;
-  _poc_transform_i32(
+export interface CoreModule {
+  _core_abi_version(): number;
+  _core_version(): number;
+  _core_transform_i32(
     input: number,
     count: number,
     multiplier: number,
@@ -18,13 +18,13 @@ export interface PocCoreModule {
   HEAPU32: Uint32Array;
 }
 
-export function isPocCoreModule(m: unknown): m is PocCoreModule {
+export function isCoreModule(m: unknown): m is CoreModule {
   if (typeof m !== "object" || m === null) return false;
   const o = m as Record<string, unknown>;
   return (
-    typeof o["_poc_core_abi_version"] === "function" &&
-    typeof o["_poc_core_version"] === "function" &&
-    typeof o["_poc_transform_i32"] === "function" &&
+    typeof o["_core_abi_version"] === "function" &&
+    typeof o["_core_version"] === "function" &&
+    typeof o["_core_transform_i32"] === "function" &&
     typeof o["_malloc"] === "function" &&
     typeof o["_free"] === "function" &&
     typeof o["UTF8ToString"] === "function" &&

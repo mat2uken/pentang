@@ -31,12 +31,12 @@ test("delivery headers: MIME/CSP/no-store/404", async ({ request, baseURL }) => 
   expect(html.headers()["content-security-policy"] ?? "").toBe(expectedCSP);
   expect(html.headers()["cache-control"] ?? "").toBe("no-store");
 
-  const mjs = await request.get(new URL("wasm/poc-core.mjs", base).toString());
+  const mjs = await request.get(new URL("wasm/core.mjs", base).toString());
   expect(mjs.status()).toBe(200);
   expect(mjs.headers()["content-type"] ?? "").toContain("javascript");
   expect(mjs.headers()["content-security-policy"] ?? "").toBe(expectedCSP);
 
-  const wasm = await request.get(new URL("wasm/poc-core.wasm", base).toString());
+  const wasm = await request.get(new URL("wasm/core.wasm", base).toString());
   expect(wasm.status()).toBe(200);
   expect(wasm.headers()["content-type"] ?? "").toBe("application/wasm");
 

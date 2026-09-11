@@ -1,6 +1,6 @@
 //! バイナリデータプレーンの共通処理。
 //! wireフレームの連結batchを受けて1フレームずつ処理し、応答フレームの連結を返す。
-//! `poc_transform_bin` invokeコマンドと `pocbin:` schemeハンドラの両方から使う
+//! `corebin:` schemeハンドラと単体試験から使う
 //! single source of truth。C++計算をRustへ再実装しない。
 //!
 //! メモリ方針: 応答は件数が確定してからではなく1フレームずつ追記する (Vecの
@@ -8,7 +8,7 @@
 //! 計算出力はFFI境界でi32連続領域が要るため各1回の複写は不可避で、以下に集約する。
 
 use crate::commands::AppErrorDto;
-use poc_core_ffi::wire;
+use core_ffi::wire;
 
 fn wire_err_to_app(e: wire::WireError) -> AppErrorDto {
     match e {
@@ -24,11 +24,11 @@ fn wire_err_to_app(e: wire::WireError) -> AppErrorDto {
     }
 }
 
-fn core_err_to_app(e: poc_core_ffi::CoreError) -> AppErrorDto {
+fn core_err_to_app(e: core_ffi::CoreError) -> AppErrorDto {
     match e {
-        poc_core_ffi::CoreError::LimitExceeded(m) => AppErrorDto::new("LIMIT_EXCEEDED", m),
-        poc_core_ffi::CoreError::OutOfMemory(m) => AppErrorDto::new("OUT_OF_MEMORY", m),
-        poc_core_ffi::CoreError::CoreFailure(m) => AppErrorDto::new("CORE_FAILURE", m),
+        core_ffi::CoreError::LimitExceeded(m) => AppErrorDto::new("LIMIT_EXCEEDED", m),
+        core_ffi::CoreError::OutOfMemory(m) => AppErrorDto::new("OUT_OF_MEMORY", m),
+        core_ffi::CoreError::CoreFailure(m) => AppErrorDto::new("CORE_FAILURE", m),
     }
 }
 
@@ -67,7 +67,7 @@ fn append_transform(frame: &[u8], out: &mut Vec<u8>) -> Result<(), AppErrorDto> 
     let d = wire::decode_transform_request(frame).map_err(wire_err_to_app)?;
     // FFIは連続i32領域を要求するためここで1回だけ実体化する。
     let values = d.to_vec();
-    let r = poc_core_ffi::transform(&values, d.multiplier, d.offset).map_err(core_err_to_app)?;
+    let r = core_ffi::transform(&values, d.multiplier, d.offset).map_err(core_err_to_app)?;
     let need = wire::WIRE_SIZE + 8 + r.values.len() * 4;
     let start = out.len();
     // SAFETY: 直後のencodeがneed全バイト (header+count+checksum+values) を
@@ -94,7 +94,7 @@ fn append_get_info(frame: &[u8], out: &mut Vec<u8>) -> Result<(), AppErrorDto> {
             "getInfo request must be empty".to_string(),
         ));
     }
-    let info = poc_core_ffi::get_info().map_err(core_err_to_app)?;
+    let info = core_ffi::get_info().map_err(core_err_to_app)?;
     let version = info.version.as_bytes();
     let need = wire::WIRE_SIZE + 8 + version.len();
     let start = out.len();
@@ -215,12 +215,11 @@ mod tests {
         );
     }
 
-    // ハンドラ層ベンチ: JSON既存経路 vs wire vs b64 の Rust 側コスト。
-    // `cargo test --release -p poc-app --lib bench_ipc_paths -- --nocapture` で実行。
+    // ハンドラ層ベンチ: JSON既存経路 vs wire の Rust 側コスト。
+    // `cargo test --release -p core-app --lib bench_ipc_paths -- --nocapture` で実行。
     // PENTANG_BENCH_OUT にパスを渡すとJSONも保存する。
     #[test]
     fn bench_ipc_paths() {
-        use base64::Engine as _;
         use serde_json::json;
 
         fn values(n: usize) -> Vec<i32> {
@@ -260,24 +259,16 @@ mod tests {
                 buf.truncate(m);
                 buf
             };
-            let b64_req =
-                base64::engine::general_purpose::STANDARD.encode(&wire_req);
-
-            // 正当性の相互確認 (3経路の計算一致)。
-            let r_json = crate::commands::poc_transform(json_req.clone()).expect("json");
-            let r_b64 = crate::commands::poc_transform_bin(b64_req.clone()).expect("b64");
+            // 正当性の相互確認 (2経路の計算一致)。
+            let r_json = crate::commands::core_transform(json_req.clone()).expect("json");
             let r_wire = process_batch(&wire_req).expect("wire");
             let d_wire = wire::decode_transform_response(&r_wire).expect("dec");
-            let b64_resp_bytes =
-                base64::engine::general_purpose::STANDARD.decode(&r_b64).unwrap();
-            let d_b64 = wire::decode_transform_response(&b64_resp_bytes).expect("dec64");
             assert_eq!(r_json.values, d_wire.to_vec());
             assert_eq!(r_json.checksum, d_wire.checksum);
-            assert_eq!(r_json.values, d_b64.to_vec());
 
             let json_us = timeit(
                 || {
-                    let r = crate::commands::poc_transform(json_req.clone()).unwrap();
+                    let r = crate::commands::core_transform(json_req.clone()).unwrap();
                     let _ = serde_json::to_string(&r).unwrap();
                 },
                 iters,
@@ -291,24 +282,15 @@ mod tests {
                 read_alloc() as f64 / iters as f64
             }
             let json_alloc = alloc_per_op(iters, || {
-                let r = crate::commands::poc_transform(json_req.clone()).unwrap();
+                let r = crate::commands::core_transform(json_req.clone()).unwrap();
                 let _ = serde_json::to_string(&r).unwrap();
             });
             let wire_alloc = alloc_per_op(iters, || {
                 let _ = process_batch(&wire_req).unwrap();
             });
-            let b64_alloc = alloc_per_op(iters, || {
-                let _ = crate::commands::poc_transform_bin(b64_req.clone()).unwrap();
-            });
             let wire_us = timeit(
                 || {
                     let _ = process_batch(&wire_req).unwrap();
-                },
-                iters,
-            );
-            let b64_us = timeit(
-                || {
-                    let _ = crate::commands::poc_transform_bin(b64_req.clone()).unwrap();
                 },
                 iters,
             );
@@ -329,29 +311,26 @@ mod tests {
             rows.push(serde_json::json!({
                 "n": n,
                 "iters": iters,
-                "reqBytes": {"json": json_req_str.len(), "wire": wire_req.len(), "b64": b64_req.len()},
-                "handlerUs": {"json": json_us, "wire": wire_us, "b64": b64_us},
+                "reqBytes": {"json": json_req_str.len(), "wire": wire_req.len()},
+                "handlerUs": {"json": json_us, "wire": wire_us},
                 "decodeUs": {"jsonValidate": json_validate_us, "wireDecode": wire_decode_us},
-                "allocBytesPerOp": {"json": json_alloc, "wire": wire_alloc, "b64": b64_alloc},
+                "allocBytesPerOp": {"json": json_alloc, "wire": wire_alloc},
             }));
         }
-        println!("| N | req bytes json/wire/b64 | handler μs json | wire | b64 | decode内訳 json/wire μs | alloc/op B json/wire/b64 |");
-        println!("|---|---|---|---|---|---|---|");
+        println!("| N | req bytes json/wire | handler μs json | wire | decode内訳 json/wire μs | alloc/op B json/wire |");
+        println!("|---|---|---|---|---|---|");
         for r in &rows {
             println!(
-                "| {} | {}/{}/{} | {:.2} | {:.2} | {:.2} | {:.2}/{:.2} | {:.0}/{:.0}/{:.0} |",
+                "| {} | {}/{} | {:.2} | {:.2} | {:.2}/{:.2} | {:.0}/{:.0} |",
                 r["n"],
                 r["reqBytes"]["json"],
                 r["reqBytes"]["wire"],
-                r["reqBytes"]["b64"],
                 r["handlerUs"]["json"],
                 r["handlerUs"]["wire"],
-                r["handlerUs"]["b64"],
                 r["decodeUs"]["jsonValidate"],
                 r["decodeUs"]["wireDecode"],
                 r["allocBytesPerOp"]["json"],
                 r["allocBytesPerOp"]["wire"],
-                r["allocBytesPerOp"]["b64"],
             );
         }
         if let Ok(path) = std::env::var("PENTANG_BENCH_OUT") {

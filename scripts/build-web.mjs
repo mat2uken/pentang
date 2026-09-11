@@ -11,7 +11,7 @@ import { parseKVArgs } from "./lib.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function usage() {
-  return `usage: npm run build:web [-- --base /|/poc/]`;
+  return `usage: npm run build:web [-- --base /|/core/]`;
 }
 
 const { kv } = parseKVArgs(process.argv.slice(2));
@@ -74,8 +74,8 @@ if (run("npx", ["vite", "build", "--mode", "web", "--base", base, "--outDir", "d
 // 一時出力の検査: index.html、wasm/mjs、Worker chunkの存在
 const tmpFiles = listFiles(tmpOut);
 const hasHtml = tmpFiles.some((f) => f.rel === "index.html");
-const hasWasm = tmpFiles.some((f) => f.rel === "wasm/poc-core.wasm");
-const hasMjs = tmpFiles.some((f) => f.rel === "wasm/poc-core.mjs");
+const hasWasm = tmpFiles.some((f) => f.rel === "wasm/core.wasm");
+const hasMjs = tmpFiles.some((f) => f.rel === "wasm/core.mjs");
 if (!hasHtml || !hasWasm || !hasMjs) {
   console.error(`tmp build missing required files: html=${String(hasHtml)} mjs=${String(hasMjs)} wasm=${String(hasWasm)}`);
   try {
@@ -107,7 +107,7 @@ const record = {
   builtAt: new Date().toISOString(),
   sources: {
     "packages/core/src/core.cpp": sha256File(path.join(ROOT, "packages/core/src/core.cpp")),
-    "packages/core/include/poc_core.h": sha256File(path.join(ROOT, "packages/core/include/poc_core.h")),
+    "packages/core/include/core.h": sha256File(path.join(ROOT, "packages/core/include/core.h")),
     "packages/api/fixtures/golden-vectors.json": sha256File(path.join(ROOT, "packages/api/fixtures/golden-vectors.json")),
     "package-lock.json": sha256File(path.join(ROOT, "package-lock.json")),
     "Cargo.lock": existsSync(path.join(ROOT, "Cargo.lock")) ? sha256File(path.join(ROOT, "Cargo.lock")) : null,

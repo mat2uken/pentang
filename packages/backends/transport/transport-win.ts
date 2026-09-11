@@ -6,7 +6,7 @@
  *
  * 現状の位置付け: Tauri は WebView2 を抽象化しており、JS から SharedBuffer に
  * 直接触れない。そのため本クラスは将来の native plugin hook
- * (`__POC_SHARED_BUFFER__`) が公開された場合に 0コピー経路を使い、それまでは
+ * (`__CORE_SHARED_BUFFER__`) が公開された場合に 0コピー経路を使い、それまでは
  * 注入された `fallback` (tauri-invoke) へ委譲する薄いラッパーである。
  */
 import {

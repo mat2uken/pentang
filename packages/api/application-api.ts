@@ -7,9 +7,9 @@ export type BackendKind = "tauri-native" | "wasm-worker";
 export type HostOs = "ios" | "android" | "windows" | "macos" | "browser";
 
 export interface CoreInfo {
-  /** 実際の C++ poc_core_abi_version() の結果。未対応の版なら初期化失敗。 */
+  /** 実際の C++ core_abi_version() の結果。未対応の版なら初期化失敗。 */
   readonly abiVersion: number;
-  /** 実際の C++ poc_core_version() の UTF-8 文字列をコピーした値。 */
+  /** 実際の C++ core_version() の UTF-8 文字列をコピーした値。 */
   readonly version: string;
 }
 
