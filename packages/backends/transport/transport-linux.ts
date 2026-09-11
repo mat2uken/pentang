@@ -9,6 +9,7 @@
  */
 import {
   TRANSPORT_CAPS,
+  sendViaPipeOrFallback,
   type BridgeTransport,
   type BytePipe,
   type TransportEnv,
@@ -36,8 +37,11 @@ export class LinuxDirectTransport implements BridgeTransport {
   }
 
   async send(requestBytes: Uint8Array): Promise<Uint8Array> {
-    if (this.pipe) return this.pipe(requestBytes);
-    if (this.fallback) return this.fallback.send(requestBytes);
-    throw new Error("webkit-extension: no direct pipe or fallback");
+    return sendViaPipeOrFallback(
+      this.pipe,
+      this.fallback,
+      requestBytes,
+      "webkit-extension: no direct pipe or fallback",
+    );
   }
 }

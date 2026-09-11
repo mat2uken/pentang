@@ -15,6 +15,8 @@
  * DOM / Tauri / Worker 型に依存しない。
  */
 
+import { readU32LE, writeU32LE } from "./wire";
+
 export const RING_META_SIZE = 12 as const;
 export const RING_OFF_HEAD = 0 as const;
 export const RING_OFF_TAIL = 4 as const;
@@ -28,22 +30,6 @@ function ringUsed(head: number, tail: number, capacity: number): number {
 function ringFree(head: number, tail: number, capacity: number): number {
   if (capacity === 0) return 0;
   return capacity - 1 - ringUsed(head, tail, capacity);
-}
-
-function readU32(view: Uint8Array, offset: number): number {
-  return (
-    view[offset]! |
-    (view[offset + 1]! << 8) |
-    (view[offset + 2]! << 16) |
-    (view[offset + 3]! * 0x1000000)
-  ) >>> 0;
-}
-
-function writeU32(view: Uint8Array, offset: number, v: number): void {
-  view[offset] = v & 0xff;
-  view[offset + 1] = (v >>> 8) & 0xff;
-  view[offset + 2] = (v >>> 16) & 0xff;
-  view[offset + 3] = (v >>> 24) & 0xff;
 }
 
 export class WireRing {
@@ -63,9 +49,9 @@ export class WireRing {
       throw new RangeError(`ring capacity must be a positive integer, got ${String(capacityBytes)}`);
     }
     const region = new Uint8Array(RING_META_SIZE + capacityBytes);
-    writeU32(region, RING_OFF_HEAD, 0);
-    writeU32(region, RING_OFF_TAIL, 0);
-    writeU32(region, RING_OFF_CAPACITY, capacityBytes);
+    writeU32LE(region, RING_OFF_HEAD, 0);
+    writeU32LE(region, RING_OFF_TAIL, 0);
+    writeU32LE(region, RING_OFF_CAPACITY, capacityBytes);
     return new WireRing(region, capacityBytes);
   }
 
@@ -78,9 +64,9 @@ export class WireRing {
       throw new RangeError("ring region too small for capacity");
     }
     const view = region.subarray(0, RING_META_SIZE + capacityBytes);
-    writeU32(view, RING_OFF_HEAD, 0);
-    writeU32(view, RING_OFF_TAIL, 0);
-    writeU32(view, RING_OFF_CAPACITY, capacityBytes);
+    writeU32LE(view, RING_OFF_HEAD, 0);
+    writeU32LE(view, RING_OFF_TAIL, 0);
+    writeU32LE(view, RING_OFF_CAPACITY, capacityBytes);
     return new WireRing(view, capacityBytes);
   }
 
@@ -89,9 +75,9 @@ export class WireRing {
     if (region.length < RING_META_SIZE + 1) {
       throw new RangeError("ring region too small");
     }
-    const head = readU32(region, RING_OFF_HEAD);
-    const tail = readU32(region, RING_OFF_TAIL);
-    const capacity = readU32(region, RING_OFF_CAPACITY);
+    const head = readU32LE(region, RING_OFF_HEAD);
+    const tail = readU32LE(region, RING_OFF_TAIL);
+    const capacity = readU32LE(region, RING_OFF_CAPACITY);
     if (capacity < 1 || region.length < RING_META_SIZE + capacity) {
       throw new RangeError("ring header capacity mismatch");
     }
@@ -107,11 +93,11 @@ export class WireRing {
   }
 
   get head(): number {
-    return readU32(this.region, RING_OFF_HEAD);
+    return readU32LE(this.region, RING_OFF_HEAD);
   }
 
   get tail(): number {
-    return readU32(this.region, RING_OFF_TAIL);
+    return readU32LE(this.region, RING_OFF_TAIL);
   }
 
   used(): number {
@@ -137,7 +123,7 @@ export class WireRing {
     if (first < bytes.length) {
       this.data.set(bytes.subarray(first), 0);
     }
-    writeU32(this.region, RING_OFF_HEAD, (head + bytes.length) % this.capacity);
+    writeU32LE(this.region, RING_OFF_HEAD, (head + bytes.length) % this.capacity);
     return true;
   }
 
@@ -157,7 +143,7 @@ export class WireRing {
     const head = this.head;
     const tail = this.tail;
     if (n > ringUsed(head, tail, this.capacity)) return false;
-    writeU32(this.region, RING_OFF_TAIL, (tail + n) % this.capacity);
+    writeU32LE(this.region, RING_OFF_TAIL, (tail + n) % this.capacity);
     return true;
   }
 
@@ -173,12 +159,12 @@ export class WireRing {
       out.set(spans[0]!, 0);
       out.set(spans[1]!, spans[0]!.length);
     }
-    writeU32(this.region, RING_OFF_TAIL, this.head);
+    writeU32LE(this.region, RING_OFF_TAIL, this.head);
     return out;
   }
 
   clear(): void {
-    writeU32(this.region, RING_OFF_TAIL, this.head);
+    writeU32LE(this.region, RING_OFF_TAIL, this.head);
   }
 }
 

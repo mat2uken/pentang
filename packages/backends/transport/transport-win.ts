@@ -11,6 +11,7 @@
  */
 import {
   TRANSPORT_CAPS,
+  sendViaPipeOrFallback,
   type BridgeTransport,
   type BytePipe,
   type TransportEnv,
@@ -38,8 +39,11 @@ export class WebView2SharedTransport implements BridgeTransport {
   }
 
   async send(requestBytes: Uint8Array): Promise<Uint8Array> {
-    if (this.pipe) return this.pipe(requestBytes);
-    if (this.fallback) return this.fallback.send(requestBytes);
-    throw new Error("webview2-shared: no shared-buffer pipe or fallback");
+    return sendViaPipeOrFallback(
+      this.pipe,
+      this.fallback,
+      requestBytes,
+      "webview2-shared: no shared-buffer pipe or fallback",
+    );
   }
 }

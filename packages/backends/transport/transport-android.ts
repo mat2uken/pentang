@@ -10,6 +10,7 @@
  */
 import {
   TRANSPORT_CAPS,
+  SerialQueue,
   getCorebinPort,
   type BridgeTransport,
   type BytePipe,
@@ -68,7 +69,7 @@ export class WebMessageTransport implements BridgeTransport {
   readonly kind = "android-port" as const;
   readonly caps = TRANSPORT_CAPS["android-port"];
   private readonly port: WebMessageTransportDeps["port"];
-  private tail: Promise<void> = Promise.resolve();
+  private readonly queue = new SerialQueue();
   private readonly pending: Array<{
     readonly sequence: number;
     readonly resolve: (v: Uint8Array) => void;
@@ -99,7 +100,7 @@ export class WebMessageTransport implements BridgeTransport {
       requestBytes.byteOffset === 0 && requestBytes.byteLength === requestBytes.buffer.byteLength
         ? (requestBytes.buffer as ArrayBuffer)
         : (requestBytes.slice().buffer as ArrayBuffer);
-    const run = this.tail.then(
+    return this.queue.enqueue(
       () =>
         new Promise<Uint8Array>((resolve, reject) => {
           this.pending.push({ sequence, resolve, reject });
@@ -112,11 +113,6 @@ export class WebMessageTransport implements BridgeTransport {
           }
         }),
     );
-    this.tail = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
   }
 
   private onMessage(data: unknown): void {

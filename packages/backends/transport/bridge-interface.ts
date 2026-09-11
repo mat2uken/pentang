@@ -210,6 +210,19 @@ export function toTransferableCopy(src: Uint8Array): Uint8Array {
   return src.slice();
 }
 
+/** pipe → fallback の順に委譲する薄ラッパの共通実装。どちらもない場合の
+ *  throw 文言は各 transport の公開契約のため引数で受け取る。 */
+export function sendViaPipeOrFallback(
+  pipe: BytePipe | null,
+  fallback: BridgeTransport | null,
+  requestBytes: Uint8Array,
+  noRouteMessage: string,
+): Promise<Uint8Array> {
+  if (pipe) return pipe(requestBytes);
+  if (fallback) return fallback.send(requestBytes);
+  throw new Error(noRouteMessage);
+}
+
 /** AppErrorコード付きのトランスポート失敗。上位は code で分類できる。 */
 export class TransportError extends Error {
   readonly code: string;
@@ -228,5 +241,22 @@ export function normalizeTransportFailure(reason: unknown): TransportError {
     return new TransportError("TRANSPORT_ERROR", JSON.stringify(reason) ?? String(reason));
   } catch {
     return new TransportError("TRANSPORT_ERROR", String(reason));
+  }
+}
+
+/** 送信タスクの直列化キュー。応答と要求の対応順序を保つため、
+ *  タスクを1件ずつ順番に実行する。内部の鎖は失敗しても切れない
+ *  (失敗を飲み込んで次へ進む) が、呼び出し側へ返す promise には
+ *  元の成否をそのまま伝える。 */
+export class SerialQueue {
+  private tail: Promise<void> = Promise.resolve();
+
+  enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(task);
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 }

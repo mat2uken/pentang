@@ -18,6 +18,7 @@ import {
 } from "../../packages/backends/transport/index";
 import {
   TRANSPORT_CAPS,
+  SerialQueue,
   TransportError,
   normalizeTransportFailure,
   toTransferableCopy,
@@ -857,5 +858,60 @@ describe("createFastTauriTransport (measured preference with fallback)", () => {
     const invoke = vi.fn(async () => "");
     const t = await createFastTauriTransport({ fetchFn: schemeEcho({ androidLike: true }), invoke });
     expect(t.kind).toBe("tauri-invoke");
+  });
+});
+
+describe("SerialQueue", () => {
+  it("runs tasks in enqueue order", async () => {
+    const q = new SerialQueue();
+    const order: number[] = [];
+    const gates = [0, 1, 2].map(() => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      return { gate, release };
+    });
+    const runs = [0, 1, 2].map((i) =>
+      q.enqueue(async () => {
+        order.push(i);
+        await gates[i]!.gate;
+        return i;
+      }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(order).toEqual([0]);
+    gates[0]!.release();
+    expect(await runs[0]).toBe(0);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(order).toEqual([0, 1]);
+    gates[1]!.release();
+    gates[2]!.release();
+    expect(await Promise.all(runs)).toEqual([0, 1, 2]);
+    expect(order).toEqual([0, 1, 2]);
+  });
+
+  it("continues the chain after a rejection, preserving outcome", async () => {
+    const q = new SerialQueue();
+    const second = vi.fn(async () => "ok");
+    const first = q.enqueue(async () => {
+      throw new Error("boom");
+    });
+    const out = q.enqueue(second);
+    await expect(first).rejects.toThrow("boom");
+    await expect(out).resolves.toBe("ok");
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it("converts a synchronous task throw into rejection and continues", async () => {
+    const q = new SerialQueue();
+    const bad = q.enqueue(() => {
+      throw new Error("sync");
+    });
+    const good = q.enqueue(async () => 7);
+    await expect(bad).rejects.toThrow("sync");
+    await expect(good).resolves.toBe(7);
   });
 });

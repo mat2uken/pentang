@@ -12,6 +12,7 @@
  */
 import {
   TRANSPORT_CAPS,
+  sendViaPipeOrFallback,
   type BridgeTransport,
   type BytePipe,
   type TransportEnv,
@@ -39,8 +40,11 @@ export class WebKitIpcTransport implements BridgeTransport {
   }
 
   async send(requestBytes: Uint8Array): Promise<Uint8Array> {
-    if (this.pipe) return this.pipe(requestBytes);
-    if (this.fallback) return this.fallback.send(requestBytes);
-    throw new Error("webkit-ipc: no message-handler pipe or fallback");
+    return sendViaPipeOrFallback(
+      this.pipe,
+      this.fallback,
+      requestBytes,
+      "webkit-ipc: no message-handler pipe or fallback",
+    );
   }
 }

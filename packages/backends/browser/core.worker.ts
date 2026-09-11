@@ -6,6 +6,7 @@ import type { WorkerRequest, WorkerResponse } from "./worker-protocol";
 import { isCoreModule, type CoreModule } from "./wasm-types";
 import { validateTransformRequest } from "../../api/validation";
 import { appError } from "../../api/errors";
+import { SerialQueue } from "../transport/bridge-interface";
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -86,11 +87,9 @@ export function checkUrls(moduleUrl: unknown, wasmUrl: unknown): string | null {
 }
 
 // 直列実行のためのqueue。同期のC呼び出しを含めWorker内で直列処理する。
-let tail: Promise<void> = Promise.resolve();
+let queue = new SerialQueue();
 function enqueue(fn: () => Promise<void>): void {
-  const run = tail.then(fn, fn);
-  // unhandled抑止のためcatch済みのtailを保持する
-  tail = run.catch(() => {});
+  void queue.enqueue(fn);
 }
 
 // test用のimporter差し替え。製品は既定の動的importを使う。
@@ -101,7 +100,7 @@ export function __setImporterForTest(fn: (url: string) => Promise<unknown>): voi
 export function __resetWorkerForTest(): void {
   state = "uninitialized";
   mod = null;
-  tail = Promise.resolve();
+  queue = new SerialQueue();
 }
 export function __getWorkerStateForTest(): string {
   return state;

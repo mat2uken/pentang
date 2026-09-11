@@ -17,7 +17,7 @@ PoC の検証対象であり、再利用する部分。UI・配信・署名を�
 
 - `core` ← `ffi` / `core` → (Emscripten) → WASM ← `backends/browser`
 - `api` ← `backends/*` ← アプリ (`apps/demo`、`src-tauri` の commands)
-- `browser` と `tauri` は互いを import しない。共有は `pipeline.ts` / `request-state.ts` のみ。
+- `browser` と `tauri` は互いを import しない。共有は `pipeline.ts` / `request-state.ts` / `transport/` のみ。
 
 ## 試験・ビルド
 
