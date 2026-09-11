@@ -1,6 +1,8 @@
 //! Tauri非依存のsafe FFI。unsafeなC ABI宣言はprivateに封じる。
 //! C++側の予期しないstatusはCORE_FAILUREとして扱う。
 
+pub mod wire;
+
 use std::ffi::CStr;
 use std::os::raw::c_char;
 

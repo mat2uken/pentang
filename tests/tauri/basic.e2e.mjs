@@ -4,6 +4,15 @@ function requireText(actual, expected, label) {
   }
 }
 
+// ゲストプラグイン欠落時は全コマンドが5秒超のタイムアウトを積み上げるため、
+// 先頭で即時判定する (VITE_WDIO=1 なしで組まれたバイナリの取り違え対策)。
+async function requireGuestPlugin() {
+  const present = await browser.execute(() => typeof window.wdioTauri !== "undefined");
+  if (!present) {
+    throw new Error("guest plugin missing: rebuild the binary with VITE_WDIO=1");
+  }
+}
+
 async function waitForText(selector, expected, timeout = 30000) {
   await browser.waitUntil(
     async () => (await browser.$(selector).getText()).includes(expected),
@@ -13,6 +22,7 @@ async function waitForText(selector, expected, timeout = 30000) {
 
 describe("packaged Tauri UI", () => {
   it("runs the common lifecycle through the real WebView and native backend", async () => {
+    await requireGuestPlugin();
     await waitForText("#status", "ready");
 
     const info = await $("#backend-info").getText();

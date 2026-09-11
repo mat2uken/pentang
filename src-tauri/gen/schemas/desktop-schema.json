@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Allow PoC getInfo/transform commands only",
+          "description": "Allow PoC getInfo/transform commands only (json + binary data plane)",
           "type": "string",
           "const": "allow-poc-api",
-          "markdownDescription": "Allow PoC getInfo/transform commands only"
+          "markdownDescription": "Allow PoC getInfo/transform commands only (json + binary data plane)"
         },
         {
           "description": "Enables the poc_get_info command without any pre-configured scope.",
@@ -195,6 +195,12 @@
           "markdownDescription": "Enables the poc_transform command without any pre-configured scope."
         },
         {
+          "description": "Enables the poc_transform_bin command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-poc-transform-bin",
+          "markdownDescription": "Enables the poc_transform_bin command without any pre-configured scope."
+        },
+        {
           "description": "Denies the poc_get_info command without any pre-configured scope.",
           "type": "string",
           "const": "deny-poc-get-info",
@@ -205,6 +211,12 @@
           "type": "string",
           "const": "deny-poc-transform",
           "markdownDescription": "Denies the poc_transform command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the poc_transform_bin command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-poc-transform-bin",
+          "markdownDescription": "Denies the poc_transform_bin command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

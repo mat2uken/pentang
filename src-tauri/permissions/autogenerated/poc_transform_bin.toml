@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-poc-transform-bin"
+description = "Enables the poc_transform_bin command without any pre-configured scope."
+commands.allow = ["poc_transform_bin"]
+
+[[permission]]
+identifier = "deny-poc-transform-bin"
+description = "Denies the poc_transform_bin command without any pre-configured scope."
+commands.deny = ["poc_transform_bin"]

@@ -223,6 +223,20 @@ pub fn poc_transform(request: serde_json::Value) -> Result<TransformResultDto, A
     })
 }
 
+/// バイナリデータプレーンのinvoke版。base64化したwire要求batchを受けて
+/// base64化したwire応答batchを返す。JSON数値配列のparseを避けるための経路で、
+/// 検証・計算・エラー型は `crate::batch::process_batch` に一本化する。
+/// batch内エラーはその時点で打ち切り、単一のAppErrorで返す。
+#[tauri::command]
+pub fn poc_transform_bin(data: String) -> Result<String, AppErrorDto> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data.as_bytes())
+        .map_err(|_| AppErrorDto::invalid("data must be base64".to_string()))?;
+    let out = crate::batch::process_batch(&bytes)?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&out))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

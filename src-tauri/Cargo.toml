@@ -14,6 +14,8 @@ tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
 tauri = { version = "=2.11.5", features = [] }
+# invoke-b64経路のbase64。tauri本体と同一版に固定しlock追加を避ける。
+base64 = "=0.22.1"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151" }
 poc-core-ffi = { path = "../packages/ffi" }

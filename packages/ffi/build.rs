@@ -195,6 +195,10 @@ fn main() {
         "cargo:rerun-if-changed={}",
         include.join("poc_core.h").display()
     );
+    println!(
+        "cargo:rerun-if-changed={}",
+        include.join("poc_wire.h").display()
+    );
     for name in [
         "ANDROID_HOME",
         "ANDROID_SDK_ROOT",

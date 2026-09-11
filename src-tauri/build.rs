@@ -4,7 +4,7 @@ fn main() {
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(
             tauri_build::AppManifest::new()
-                .commands(&["poc_get_info", "poc_transform"]),
+                .commands(&["poc_get_info", "poc_transform", "poc_transform_bin"]),
         ),
     )
     .expect("tauri build failed");

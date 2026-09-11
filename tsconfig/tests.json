@@ -7,5 +7,5 @@
       "@backend": ["../packages/backends/tauri/index.ts"]
     }
   },
-  "include": ["../tests/api/**/*.ts", "../packages/api/**/*.ts", "../packages/backends/tauri/**/*.ts", "../packages/backends/browser/**/*.ts", "../packages/backends/request-state.ts", "../packages/backends/pipeline.ts", "../apps/poc-demo/self-test/**/*.ts", "../apps/poc-demo/ui.ts"]
+  "include": ["../tests/api/**/*.ts", "../packages/api/**/*.ts", "../packages/backends/tauri/**/*.ts", "../packages/backends/browser/**/*.ts", "../packages/backends/transport/**/*.ts", "../packages/backends/request-state.ts", "../packages/backends/pipeline.ts", "../apps/poc-demo/self-test/**/*.ts", "../apps/poc-demo/ui.ts"]
 }

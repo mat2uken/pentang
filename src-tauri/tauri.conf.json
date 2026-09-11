@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' pocbin: http://pocbin.localhost ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'",
       "capabilities": ["main-poc", "wdio-desktop"]
     }
   },

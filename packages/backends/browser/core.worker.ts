@@ -266,12 +266,10 @@ async function handleTransform(
       return;
     }
     // 4. 必要ならviewを再取得して出力を通常配列へコピーする。WASM上のsubarrayを外へ返さない。
+    // subarrayはビュー (コピーなし) で、Array.fromが1回だけ実体化する (要素loopと同数の1コピーだがnative走査)。
     heap32 = m.HEAP32;
     heapU32 = m.HEAPU32;
-    const outVals: number[] = new Array(count);
-    for (let i = 0; i < count; i++) {
-      outVals[i] = heap32[(outPtr >> 2) + i] | 0;
-    }
+    const outVals: number[] = Array.from(heap32.subarray(outPtr >> 2, (outPtr >> 2) + count));
     const checksum = heapU32[sumPtr >> 2] >>> 0;
     reply({ ...base, ok: true, data: { values: outVals, checksum } });
   } catch (e) {

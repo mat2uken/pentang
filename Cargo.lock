@@ -2496,6 +2496,7 @@ dependencies = [
 name = "poc-app"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "poc-core-ffi",
  "serde",
  "serde_json",

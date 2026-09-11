@@ -110,9 +110,9 @@ Tauriの独自commandは、既定では全window / WebViewから利用できる�
 
 実装時は次の一組を揃える。
 
-1. `src-tauri/src/lib.rs` の共通runから `poc_get_info / poc_transform` を登録する。desktopの `main.rs` のみに置かない。
-2. `tauri_build::AppManifest::new().commands(&["poc_get_info", "poc_transform"])` を既存のTauri build処理に組み込む。
-3. `permissions/poc.toml` で `allow-poc-api` を定義し、`commands.allow` はこの2個だけにする。
+1. `src-tauri/src/lib.rs` の共通runから `poc_get_info / poc_transform / poc_transform_bin` を登録し、`pocbin:` scheme (`/transform`・`/health`) を登録する。desktopの `main.rs` のみに置かない。
+2. `tauri_build::AppManifest::new().commands(&["poc_get_info", "poc_transform", "poc_transform_bin"])` を既存のTauri build処理に組み込む。
+3. `permissions/poc.toml` で `allow-poc-api` を定義し、`commands.allow` はこの3個だけにする。
 4. `capabilities/main-poc.json` は `windows: ["main"]`、`permissions: ["allow-poc-api"]` とし、remote URLを追加しない。`app.security.capabilities` で使用するcapabilityを明示する。
 5. 不要なdefault capabilityやopener pluginを取り除く。frameworkの追加権限が実際に必要なら、個別権限と理由を記録する。
 6. mainからの成功と、テスト専用の非許可windowからの拒否を実invokeで確認する。テストwindowを通常アプリへ残さない。

@@ -12,8 +12,14 @@ add_executable(core_test
 )
 target_include_directories(core_test PRIVATE packages/core/include)
 
+add_executable(wire_test
+  packages/core/tests/wire_test.cpp
+)
+target_include_directories(wire_test PRIVATE packages/core/include)
+
 # NDEBUGでも検査が消えない実装 (assert不使用) のため、特別な定義は不要。
 # Debug/Releaseは呼び出し側で明示する。
 
 enable_testing()
 add_test(NAME core_test COMMAND core_test)
+add_test(NAME wire_test COMMAND wire_test)

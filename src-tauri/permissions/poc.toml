@@ -2,5 +2,5 @@
 
 [[permission]]
 identifier = "allow-poc-api"
-description = "Allow PoC getInfo/transform commands only"
-commands.allow = ["poc_get_info", "poc_transform"]
+description = "Allow PoC getInfo/transform commands only (json + binary data plane)"
+commands.allow = ["poc_get_info", "poc_transform", "poc_transform_bin"]
